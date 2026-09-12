@@ -41,7 +41,7 @@ class AndroidDownloadStorage @Inject constructor(@ApplicationContext context: Co
                 DocumentsContract.createDocument(resolver, parent, "application/octet-stream", name)
             }
             "media" -> {
-                check(Build.VERSION.SDK_INT >= 29) { "Choose a folder on Android 7–9" }
+                if (Build.VERSION.SDK_INT < 29) error("Choose a folder on Android 7–9")
                 resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, name)
                     put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
