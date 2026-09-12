@@ -77,25 +77,28 @@ class Phase4EngineTest {
         }
     }
 
-    @Test fun decreasingConcurrencyDoesNotPreemptAndIncreasingDrainsQueue() = runBlocking {
-        val release = CountDownLatch(1)
-        val client = OkHttpClient.Builder().addInterceptor { chain ->
-            check(release.await(5, TimeUnit.SECONDS))
-            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
-                .header("Content-Length", "0").header("Accept-Ranges", "bytes").body("".toResponseBody()).build()
-        }.build()
-        val engine = DownloadEngine(client, Store(), maxConcurrentDownloads = 2)
-        try {
-            repeat(3) { engine.add(request()) }
-            withTimeout(3000) { engine.states.first { list -> list.count { it.status == DownloadStatus.RUNNING } == 2 } }
-            engine.configure(8, 1, 0)
-            assertEquals(2, engine.states.value.count { it.status == DownloadStatus.RUNNING })
-            assertEquals(1, engine.states.value.count { it.status == DownloadStatus.QUEUED })
-            engine.configure(8, 3, 0)
-            withTimeout(3000) { engine.states.first { list -> list.count { it.status == DownloadStatus.RUNNING } == 3 } }
-            release.countDown()
-            withTimeout(3000) { engine.states.first { list -> list.all { it.status == DownloadStatus.COMPLETED } } }
-        } finally { release.countDown(); engine.pauseAll(); client.dispatcher.executorService.shutdownNow(); client.connectionPool.evictAll() }
+    @Test
+    fun decreasingConcurrencyDoesNotPreemptAndIncreasingDrainsQueue() {
+        runBlocking {
+            val release = CountDownLatch(1)
+            val client = OkHttpClient.Builder().addInterceptor { chain ->
+                check(release.await(5, TimeUnit.SECONDS))
+                Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                    .header("Content-Length", "0").header("Accept-Ranges", "bytes").body("".toResponseBody()).build()
+            }.build()
+            val engine = DownloadEngine(client, Store(), maxConcurrentDownloads = 2)
+            try {
+                repeat(3) { engine.add(request()) }
+                withTimeout(3000) { engine.states.first { list -> list.count { it.status == DownloadStatus.RUNNING } == 2 } }
+                engine.configure(8, 1, 0)
+                assertEquals(2, engine.states.value.count { it.status == DownloadStatus.RUNNING })
+                assertEquals(1, engine.states.value.count { it.status == DownloadStatus.QUEUED })
+                engine.configure(8, 3, 0)
+                withTimeout(3000) { engine.states.first { list -> list.count { it.status == DownloadStatus.RUNNING } == 3 } }
+                release.countDown()
+                withTimeout(3000) { engine.states.first { list -> list.all { it.status == DownloadStatus.COMPLETED } } }
+            } finally { release.countDown(); engine.pauseAll(); client.dispatcher.executorService.shutdownNow(); client.connectionPool.evictAll() }
+        }
     }
 
     @Test fun cancelledPauseRetainsCapacityUntilWorkerCheckpointFinishes() = runBlocking {
