@@ -140,6 +140,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
     openError?.let { message -> AlertDialog(onDismissRequest = { openError = null }, title = { Text("Cannot open download") },
         text = { Text(message) }, confirmButton = { TextButton(onClick = { openError = null }) { Text("Close") } }) }
     if (batch) BatchDialog(viewModel) { batch = false }
+    }
 }
 
 @Composable
