@@ -34,7 +34,10 @@ jobs:
       - name: Install Android SDK 35
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - name: Lint, unit tests, debug and release APKs
-        run: ./gradlew lint testDebugUnitTest assembleDebug assembleRelease --no-daemon
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew lint testDebugUnitTest assembleDebug assembleRelease --no-daemon --stacktrace --info 2>&1 | tee "$RUNNER_TEMP/gradle-validation.log"
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -47,6 +50,7 @@ jobs:
         with:
           name: android-reports
           path: |
+            ${{ runner.temp }}/gradle-validation.log
             app/build/reports/
             app/build/test-results/
           if-no-files-found: ignore
