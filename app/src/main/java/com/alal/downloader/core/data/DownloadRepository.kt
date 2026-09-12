@@ -30,6 +30,7 @@ class DownloadRepository @Inject constructor(private val database: DownloadDatab
                 destinationUri = entity.destinationUri,
                 fileName = entity.fileName,
                 totalBytes = entity.totalBytes,
+                concurrentSlot = entity.concurrentSlot,
                 segments = row.segments.sortedBy { it.segmentIndex }.map { Segment(it.segmentIndex, it.start, it.end, it.downloaded) },
                 status = DownloadStatus.valueOf(entity.status),
                 eTag = entity.eTag, lastModified = entity.lastModified, finalUrl = entity.finalUrl,
@@ -56,6 +57,7 @@ class DownloadRepository @Inject constructor(private val database: DownloadDatab
             state.error?.javaClass?.simpleName, state.error?.message,
             state.request.destinationKind, state.request.treeUri, state.destinationUri,
             state.request.segmentCount, state.request.preserveFileName,
+            state.concurrentSlot,
         )
         database.downloads().save(entity, state.segments.map {
             SegmentEntity(state.id, it.index, it.start, it.end, it.downloaded)

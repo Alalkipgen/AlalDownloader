@@ -128,6 +128,7 @@ class DownloadTask(
             if (slots.size < connections) {
                 slots.add(slots.size + 1)
             } else {
+                state = state.copy(concurrentSlot = slots.minOrNull() ?: 0)
                 throw DownloadError.Unknown("No slots available")
             }
         }
