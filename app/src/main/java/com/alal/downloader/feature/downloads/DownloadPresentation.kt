@@ -9,6 +9,7 @@ import java.util.Locale
 object DownloadPresentation {
     val filters = listOf("All", "Active", "Completed", "Failed")
     fun matches(state: DownloadState, filter: String): Boolean = when (filter) {
+         "Waiting" -> state.status in setOf(DownloadStatus.PAUSED, DownloadStatus.WAITING_FOR_WIFI, DownloadStatus.WAITING_FOR_NETWORK)
         "Active" -> state.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI, DownloadStatus.PAUSED)
         "Completed" -> state.status == DownloadStatus.COMPLETED
         "Failed" -> state.status == DownloadStatus.FAILED

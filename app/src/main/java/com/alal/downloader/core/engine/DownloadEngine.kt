@@ -33,6 +33,8 @@ class DownloadEngine(
     private val limiter = TransferLimiter()
     private val pending = java.util.ArrayDeque<String>()
     private val jobs = mutableMapOf<String, Job>()
+    private var activeCounter = 0
+    private val activeTasks = linkedSetOf<String>()
     private var restored = false
     private var networkAllowed = true
     private var waitingStatus = DownloadStatus.WAITING_FOR_NETWORK
@@ -198,6 +200,11 @@ class DownloadEngine(
     private fun drain() {
         while (networkAllowed && jobs.size < capacity && pending.isNotEmpty()) {
             val id = pending.removeFirst()
+            if (activeCounter >= capacity) {
+                pending.addFirst(id)
+                break
+            }
+            activeCounter++
             val state = mutableStates.value.find { it.id == id && it.status == DownloadStatus.QUEUED } ?: continue
             start(state)
         }
@@ -219,6 +226,8 @@ class DownloadEngine(
         job.invokeOnCompletion {
             scope.launch {
                 gate.withLock {
+                    activeCounter = (activeCounter - 1).coerceAtLeast(0)
+                    activeTasks.remove(state.id)
                     if (jobs[state.id] === job) jobs.remove(state.id)
                     drain()
                 }

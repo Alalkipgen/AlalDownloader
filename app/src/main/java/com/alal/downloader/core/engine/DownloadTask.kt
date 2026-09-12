@@ -27,6 +27,8 @@ class DownloadTask(
     var state: DownloadState = initial
         private set
     private val mutex = Mutex()
+    private var slots = mutableSetOf<Int>()
+    private val slotMutex = Mutex()
     private val probe = RangeProbe(client)
     private val downloader = SegmentDownloader(client, limiter)
     private val samples = ArrayDeque<Pair<Long, Long>>()
@@ -122,6 +124,14 @@ class DownloadTask(
 
     private suspend fun transfer() = coroutineScope {
         val permits = Semaphore(connections)
+        slotMutex.withLock {
+            if (slots.size < connections) {
+                slots.add(slots.size + 1)
+            } else {
+                throw DownloadError.Unknown("No slots available")
+            }
+        }
+        state.concurrentSlot = slots.minOrNull() ?: 0
         val snapshot = state
         val validator = snapshot.eTag?.takeUnless { it.startsWith("W/") } ?: snapshot.lastModified
         snapshot.segments.forEach { segment ->
@@ -135,6 +145,7 @@ class DownloadTask(
                             val updated = state.segments.map { if (it.index == segment.index) it.copy(downloaded = bytes) else it }
                             val total = updated.sumOf { it.downloaded }
                             val now = System.nanoTime()
+                            slotMutex.withLock { slots.remove(segment.index) }
                             if (samples.isNotEmpty() && total < samples.last.second) samples.clear()
                             samples.add(now to total)
                             while (samples.size > 1 && now - samples.first.first > 3_000_000_000L) samples.removeFirst()
