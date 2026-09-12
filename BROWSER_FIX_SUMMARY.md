@@ -48,12 +48,14 @@ The investigation confirmed these settings were already properly configured:
 
 ## Changes Committed
 
-**Commit**: d0cab69 - "Fix browser: Switch to Google, add WebView LayoutParams, add loadsImagesAutomatically"
+**Commit d0cab69**: "Fix browser: Switch to Google, add WebView LayoutParams, add loadsImagesAutomatically"
+- `BrowserPolicy.kt` - Switched from DuckDuckGo to Google
+- `BrowserSession.kt` - Added WebView LayoutParams and loadsImagesAutomatically
+- `BrowserScreen.kt` - Updated URL bar label text, added progress indicator
 
-### Files Modified
-1. `BrowserPolicy.kt` - Switched from DuckDuckGo to Google
-2. `BrowserSession.kt` - Added WebView LayoutParams and loadsImagesAutomatically
-3. `BrowserScreen.kt` - Updated URL bar label text, added progress indicator
+**Commit [latest]**: "Add UI theme colors and enhanced DownloadPresentation with queue position"
+- `Color.kt` - Added download state colors (Downloading/Paused/Completed/Failed/Queued)
+- `DownloadPresentation.kt` - Complete rewrite with queue position, resume indicator, formatted size/speed/ETA
 
 ## Next Steps
 
