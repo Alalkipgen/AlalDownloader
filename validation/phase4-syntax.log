@@ -1,0 +1,31 @@
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/main/java/app/onedown/core/engine/DownloadHttp.kt:63 ERROR ,
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:19 ERROR class RecoveryPolicyTest {
+    @get:Rule val direc
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:111 ERROR =
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:111 )
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:111 ERROR storage = storage)
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:113 ERROR val restored = engine.states.value.single()
+
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:114 ERROR )
+        assertEquals
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:116 ERROR assertTrue(restored.error?.message?.contains("Gran
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:116 ERROR "
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:116 ERROR "
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:117 ERROR store.saved[initial.id])
+    }
+
+    @Test fun
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:117 ERROR [initial
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:120 ERROR = runBlocking
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:121 }
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:155 ERROR }
+            override fun complete(state: Downloa
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:156 }
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:163 ERROR = OkHttpClient
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:179 ERROR }
+
+    private fun segments() = listOf(Segment(0,
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:181 ERROR )
+    private fun request() = DownloadRequest("htt
+/data/user/0/com.vscodroid/files/projects/OneDown/app/src/test/java/app/onedown/core/engine/RecoveryPolicyTest.kt:182 ERROR "
+Parsed 43 files. Diagnostics are not compiler results.
