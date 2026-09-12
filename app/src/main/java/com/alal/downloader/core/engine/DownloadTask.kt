@@ -128,13 +128,17 @@ class DownloadTask(
             if (slots.size < connections) {
                 slots.add(slots.size + 1)
             } else {
-                state = state.copy(concurrentSlot = slots.minOrNull() ?: 0)
+                // Assign new state via immutable copy
+                val newState = state.copy(concurrentSlot = minSlot)
+                update(newState)
+                state = newState
                 throw DownloadError.Unknown("No slots available")
             }
         }
         state.concurrentSlot = slots.minOrNull() ?: 0
         val snapshot = state
-        val validator = snapshot.eTag?.takeUnless { it.startsWith("W/") } ?: snapshot.lastModified
+        val resolvedSlot = slots.minOrNull() ?: 0
+        state = state.copy(concurrentSlot = resolvedSlot)
         snapshot.segments.forEach { segment ->
             launch {
                 permits.withPermit {
