@@ -50,7 +50,6 @@ data class DownloadState(
     val error: DownloadError? = null,
     val destinationUri: String? = null,
 ) {
-    val concurrentSlot: Int = 0
     val downloadedBytes: Long get() = segments.sumOf { it.downloaded }
 }
 

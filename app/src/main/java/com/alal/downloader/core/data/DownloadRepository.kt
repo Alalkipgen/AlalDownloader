@@ -30,7 +30,6 @@ class DownloadRepository @Inject constructor(private val database: DownloadDatab
                 destinationUri = entity.destinationUri,
                 fileName = entity.fileName,
                 totalBytes = entity.totalBytes,
-                concurrentSlot = entity.concurrentSlot,
                 segments = row.segments.sortedBy { it.segmentIndex }.map { Segment(it.segmentIndex, it.start, it.end, it.downloaded) },
                 status = DownloadStatus.valueOf(entity.status),
                 eTag = entity.eTag, lastModified = entity.lastModified, finalUrl = entity.finalUrl,
@@ -51,13 +50,26 @@ class DownloadRepository @Inject constructor(private val database: DownloadDatab
 
     override suspend fun save(state: DownloadState) = withContext(Dispatchers.IO) {
         val entity = DownloadEntity(
-            state.id, state.request.url, state.request.fileName, JSONObject(state.request.headers).toString(),
-            state.request.referrerPageUrl, state.request.targetDir.absolutePath, state.fileName, state.totalBytes,
-            state.status.name, state.eTag, state.lastModified, state.finalUrl, state.acceptsRanges,
-            state.error?.javaClass?.simpleName, state.error?.message,
-            state.request.destinationKind, state.request.treeUri, state.destinationUri,
-            state.request.segmentCount, state.request.preserveFileName,
-            state.concurrentSlot,
+            id = state.id,
+            url = state.request.url,
+            requestFileName = state.request.fileName,
+            headersJson = JSONObject(state.request.headers).toString(),
+            referrerPageUrl = state.request.referrerPageUrl,
+            targetDir = state.request.targetDir.absolutePath,
+            fileName = state.fileName,
+            totalBytes = state.totalBytes,
+            status = state.status.name,
+            eTag = state.eTag,
+            lastModified = state.lastModified,
+            finalUrl = state.finalUrl,
+            acceptsRanges = state.acceptsRanges,
+            errorType = state.error?.javaClass?.simpleName,
+            errorMessage = state.error?.message,
+            destinationKind = state.request.destinationKind,
+            treeUri = state.request.treeUri,
+            destinationUri = state.destinationUri,
+            segmentCount = state.request.segmentCount,
+            preserveFileName = state.request.preserveFileName,
         )
         database.downloads().save(entity, state.segments.map {
             SegmentEntity(state.id, it.index, it.start, it.end, it.downloaded)

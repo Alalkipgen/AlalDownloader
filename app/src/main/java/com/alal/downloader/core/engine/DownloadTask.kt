@@ -124,21 +124,8 @@ class DownloadTask(
 
     private suspend fun transfer() = coroutineScope {
         val permits = Semaphore(connections)
-        slotMutex.withLock {
-            if (slots.size < connections) {
-                slots.add(slots.size + 1)
-            } else {
-                // Assign new state via immutable copy
-                val newState = state.copy(concurrentSlot = minSlot)
-                update(newState)
-                state = newState
-                throw DownloadError.Unknown("No slots available")
-            }
-        }
-        state.concurrentSlot = slots.minOrNull() ?: 0
         val snapshot = state
-        val resolvedSlot = slots.minOrNull() ?: 0
-        state = state.copy(concurrentSlot = resolvedSlot)
+        val validator = snapshot.eTag?.takeUnless { it.startsWith("W/") } ?: snapshot.lastModified
         snapshot.segments.forEach { segment ->
             launch {
                 permits.withPermit {
@@ -150,7 +137,6 @@ class DownloadTask(
                             val updated = state.segments.map { if (it.index == segment.index) it.copy(downloaded = bytes) else it }
                             val total = updated.sumOf { it.downloaded }
                             val now = System.nanoTime()
-                            slotMutex.withLock { slots.remove(segment.index) }
                             if (samples.isNotEmpty() && total < samples.last.second) samples.clear()
                             samples.add(now to total)
                             while (samples.size > 1 && now - samples.first.first > 3_000_000_000L) samples.removeFirst()

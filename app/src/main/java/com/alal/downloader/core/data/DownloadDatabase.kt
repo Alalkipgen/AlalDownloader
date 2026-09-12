@@ -32,7 +32,6 @@ data class DownloadEntity(
     val lastModified: String?,
     val finalUrl: String,
     val acceptsRanges: Boolean,
-    @ColumnInfo(defaultValue = "0") val concurrentSlot: Int = 0,
     val errorType: String?,
     val errorMessage: String?,
     @ColumnInfo(defaultValue = "'file'") val destinationKind: String = "file",
