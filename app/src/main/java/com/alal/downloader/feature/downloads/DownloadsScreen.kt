@@ -87,17 +87,27 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                             }
                         } else details = item
                     })) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(item.fileName, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                            Text("${DownloadPresentation.bytes(item.downloadedBytes)} / ${DownloadPresentation.bytes(item.totalBytes)} · ${DownloadPresentation.percent(item)?.let { "$it%" } ?: "—"}")
-                            Text("${DownloadPresentation.bytes(item.speedBytesPerSecond)}/s · ETA ${DownloadPresentation.eta(item)}", style = MaterialTheme.typography.bodySmall)
-                            SegmentBars(item)
-                            SuggestionChip(onClick = { details = item }, label = { Text(item.status.name.replace('_', ' ')) })
-                            item.error?.message?.let { Text(it, color = MaterialTheme.colorScheme.error, maxLines = 3) }
-                            Row {
-                                if (pause || resume) TextButton(onClick = { toggle() }) { Text(if (pause) "Pause" else "Resume") }
-                                TextButton(onClick = { deletion = item }) { Text("Delete") }
-                                TextButton(onClick = { details = item }) { Text("Details") }
+                        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            com.alal.downloader.ui.components.FileTypeIcon(item.fileName)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(item.fileName, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+                                Text(if (item.acceptsRanges) "Resume: Yes" else "Resume: No", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (item.totalBytes > 0) {
+                                    LinearProgressIndicator(progress = { DownloadPresentation.percent(item)?.div(100f) ?: 0f }, modifier = Modifier.fillMaxWidth())
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("${DownloadPresentation.bytes(item.downloadedBytes)} / ${DownloadPresentation.bytes(item.totalBytes)}", style = MaterialTheme.typography.bodySmall)
+                                    if (item.status == DownloadStatus.RUNNING && item.speedBytesPerSecond > 0) {
+                                        Text("· ${DownloadPresentation.bytes(item.speedBytesPerSecond)}/s", style = MaterialTheme.typography.bodySmall)
+                                        Text("· ETA ${DownloadPresentation.eta(item)}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                AssistChip(onClick = { details = item }, label = { Text(item.status.name.replace('_', ' ')) })
+                                item.error?.message?.let { Text(it, color = MaterialTheme.colorScheme.error, maxLines = 2) }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (pause || resume) TextButton(onClick = { toggle() }) { Text(if (pause) "Pause" else "Resume") }
+                                    TextButton(onClick = { deletion = item }) { Text("Delete") }
+                                    TextButton(onClick = { details = item }) { Text("Details") }
                             }
                             if (item.canRefreshLink()) TextButton(onClick = { reopen(item) }) { Text("Reopen page") }
                         }
