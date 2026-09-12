@@ -37,7 +37,11 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          ./gradlew lint testDebugUnitTest assembleDebug assembleRelease --no-daemon --stacktrace --info 2>&1 | tee "$RUNNER_TEMP/gradle-validation.log"
+          ./gradlew :app:testDebugUnitTest --tests '*Phase4EngineTest' --no-daemon --max-workers=1 --stacktrace --info 2>&1 | tee "$RUNNER_TEMP/gradle-validation.log"
+          ./gradlew :app:testDebugUnitTest --no-daemon --max-workers=1 --stacktrace 2>&1 | tee -a "$RUNNER_TEMP/gradle-validation.log"
+          ./gradlew :app:lintDebug --no-daemon --max-workers=1 --stacktrace 2>&1 | tee -a "$RUNNER_TEMP/gradle-validation.log"
+          ./gradlew :app:assembleDebug --no-daemon --max-workers=1 --stacktrace 2>&1 | tee -a "$RUNNER_TEMP/gradle-validation.log"
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=1 --stacktrace 2>&1 | tee -a "$RUNNER_TEMP/gradle-validation.log"
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
