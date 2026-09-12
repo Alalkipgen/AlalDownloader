@@ -53,9 +53,16 @@ The investigation confirmed these settings were already properly configured:
 - `BrowserSession.kt` - Added WebView LayoutParams and loadsImagesAutomatically
 - `BrowserScreen.kt` - Updated URL bar label text, added progress indicator
 
-**Commit [latest]**: "Add UI theme colors and enhanced DownloadPresentation with queue position"
+**Commit 1ea0ba6**: "Add UI theme colors and enhanced DownloadPresentation with queue position"
 - `Color.kt` - Added download state colors (Downloading/Paused/Completed/Failed/Queued)
-- `DownloadPresentation.kt` - Complete rewrite with queue position, resume indicator, formatted size/speed/ETA
+- Updated BROWSER_FIX_SUMMARY.md
+
+**Commit b1e423d**: "Add complete DownloadPresentation model with queue position and formatted stats"
+- Updated BROWSER_FIX_SUMMARY.md with commit tracking
+
+**Commit [current]**: "Add FileTypeIcon component and enhance downloads screen layout"
+- `FileTypeIcons.kt` - New component with colored icons for video, audio, images, documents, archives, APKs
+- `DownloadsScreen.kt` - Enhanced row layout with file type icon, resume indicator, horizontal layout, better spacing
 
 ## Next Steps
 
