@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OneDown"
+rootProject.name = "AlalDownloader"
 include(":app")

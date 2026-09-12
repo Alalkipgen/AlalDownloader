@@ -10,7 +10,7 @@ Kotlin, native Android, minSdk 24, targetSdk 35, Jetpack Compose, Coroutines and
 
 ## Architecture and future engine requirements
 
-Packages: `core/engine`, `core/data`, `core/service`, `feature/browser`, `feature/downloads`, `ui`, under `/data/user/0/com.vscodroid/files/projects/OneDown/app/src/main/java/app/onedown`.
+Packages: `core/engine`, `core/data`, `core/service`, `feature/browser`, `feature/downloads`, `ui`, under `/data/user/0/com.vscodroid/files/projects/OneDown/app/src/main/java/com/alal/downloader`.
 
 The engine must remain independent of UI and WebView. Its input is a `DownloadRequest` containing url, fileName, headers and referrerPageUrl; state is exposed via Flow. Persist url, headers as JSON, referrerPageUrl, fileName, totalBytes, per-segment progress, status, ETag and Last-Modified.
 

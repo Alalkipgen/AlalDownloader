@@ -18,12 +18,12 @@ val ciVersionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull
     ?.toIntOrNull()?.takeIf { it in 1..2_100_000_000 } ?: 1
 
 android {
-    namespace = "app.onedown"
+    namespace = "com.alal.downloader"
     compileSdk = 35
     buildToolsVersion = "35.0.0"
 
     defaultConfig {
-        applicationId = "app.onedown"
+        applicationId = "com.alal.downloader"
         minSdk = 24
         targetSdk = 35
         versionCode = ciVersionCode

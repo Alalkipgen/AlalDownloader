@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">OneDown</string>
+    <string name="app_name">Alal Downloader</string>
+    <string name="launcher_name">Alal</string>
     <string name="setup_description">Download manager · Project setup</string>
 </resources>
