@@ -21,10 +21,12 @@ class DownloadSettings @Inject constructor(@ApplicationContext private val conte
     private val mutableConcurrent = MutableStateFlow(preferences.getInt("concurrent", 3).coerceIn(1, 10))
     private val mutableSpeed = MutableStateFlow(preferences.getLong("speed_kib", 0).coerceIn(0, Long.MAX_VALUE / 1024))
     private val mutableTheme = MutableStateFlow(preferences.getString("theme", "dark") ?: "dark")
+    private val mutableHaptics = MutableStateFlow(preferences.getBoolean("haptics", true))
     val segments = mutableSegments.asStateFlow()
     val concurrent = mutableConcurrent.asStateFlow()
     val speed = mutableSpeed.asStateFlow()
     val theme = mutableTheme.asStateFlow()
+    val haptics = mutableHaptics.asStateFlow()
 
     private val mutableAutoResume = MutableStateFlow(preferences.getBoolean("auto_resume", true))
     val autoResume = mutableAutoResume.asStateFlow()
@@ -56,6 +58,11 @@ class DownloadSettings @Inject constructor(@ApplicationContext private val conte
         require(theme in setOf("system", "light", "dark"))
         check(preferences.edit().putString("theme", theme).commit()) { "Cannot save theme" }
         mutableTheme.value = theme
+    }
+
+    fun setHaptics(enabled: Boolean) {
+        check(preferences.edit().putBoolean("haptics", enabled).commit()) { "Cannot save haptics setting" }
+        mutableHaptics.value = enabled
     }
 
     fun setWifiOnly(value: Boolean) {
