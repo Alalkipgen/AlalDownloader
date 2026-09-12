@@ -22,18 +22,18 @@ fun FileTypeIcon(fileName: String, modifier: Modifier = Modifier) {
     data class IconStyle(val icon: ImageVector, val tint: Color)
     
     val style = when (extension) {
-        "mp4", "mkv", "avi", "mov", "webm", "m4v", "flv" -> IconStyle(Icons.Default.PlayArrow, Color(0xFFE91E63))
-        "mp3", "m4a", "flac", "wav", "ogg", "aac" -> IconStyle(Icons.Default.MusicNote, Color(0xFF9C27B0))
-        "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg" -> IconStyle(Icons.Default.Image, Color(0xFF2196F3))
-        "pdf" -> IconStyle(Icons.Default.PictureAsPdf, Color(0xFFF44336))
-        "zip", "rar", "7z", "tar", "gz", "bz2", "xz" -> IconStyle(Icons.Default.Folder, Color(0xFFFF9800))
-        "apk", "apks", "xapk" -> IconStyle(Icons.Default.Android, Color(0xFF4CAF50))
-        "doc", "docx", "txt", "rtf" -> IconStyle(Icons.Default.Description, Color(0xFF2196F3))
-        "xls", "xlsx", "csv" -> IconStyle(Icons.Default.TableChart, Color(0xFF4CAF50))
-        "ppt", "pptx" -> IconStyle(Icons.Default.Slideshow, Color(0xFFFF5722))
-        "exe", "msi", "dmg", "pkg" -> IconStyle(Icons.Default.Build, Color(0xFF607D8B))
-        "iso", "img" -> IconStyle(Icons.Default.Album, Color(0xFF9E9E9E))
-        else -> IconStyle(Icons.Default.InsertDriveFile, MaterialTheme.colorScheme.onSurfaceVariant)
+        "mp4", "mkv", "avi", "mov", "webm", "m4v", "flv" -> IconStyle(Icons.Filled.Videocam, Color(0xFFE91E63))
+        "mp3", "m4a", "flac", "wav", "ogg", "aac" -> IconStyle(Icons.Filled.AudioFile, Color(0xFF9C27B0))
+        "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg" -> IconStyle(Icons.Filled.Image, Color(0xFF2196F3))
+        "pdf" -> IconStyle(Icons.Filled.PictureAsPdf, Color(0xFFF44336))
+        "zip", "rar", "7z", "tar", "gz", "bz2", "xz" -> IconStyle(Icons.Filled.FolderZip, Color(0xFFFF9800))
+        "apk", "apks", "xapk" -> IconStyle(Icons.Filled.Android, Color(0xFF4CAF50))
+        "doc", "docx", "txt", "rtf" -> IconStyle(Icons.Filled.Description, Color(0xFF2196F3))
+        "xls", "xlsx", "csv" -> IconStyle(Icons.Filled.TableChart, Color(0xFF4CAF50))
+        "ppt", "pptx" -> IconStyle(Icons.Filled.Slideshow, Color(0xFFFF5722))
+        "exe", "msi", "dmg", "pkg" -> IconStyle(Icons.Filled.InstallDesktop, Color(0xFF607D8B))
+        "iso", "img" -> IconStyle(Icons.Filled.Album, Color(0xFF9E9E9E))
+        else -> IconStyle(Icons.Filled.InsertDriveFile, MaterialTheme.colorScheme.onSurfaceVariant)
     }
     
     Box(
