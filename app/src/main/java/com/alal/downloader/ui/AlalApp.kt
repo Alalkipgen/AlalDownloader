@@ -1,5 +1,6 @@
 package com.alal.downloader.ui
 
+import kotlinx.coroutines.flow.first
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -18,7 +19,7 @@ import com.alal.downloader.feature.downloads.DownloadsViewModel
 import com.alal.downloader.feature.downloads.SettingsScreen
 
 @Composable
-internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserViewModel) {
+internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserViewModel, notificationIntent: android.content.Intent? = null) {
     val context = LocalContext.current
     val browser = remember(context) { BrowserSession(context).apply { newTab() } }
     var destination by rememberSaveable { mutableStateOf("Browser") }
@@ -26,6 +27,51 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     val error by viewModel.error.collectAsStateWithLifecycle()
     val message by browserViewModel.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    var backgroundDialog by rememberSaveable { mutableStateOf(false) }
+    val downloads by viewModel.downloads.collectAsStateWithLifecycle()
+    val interrupted by viewModel.interruptedWarning.collectAsStateWithLifecycle()
+    LaunchedEffect(downloads.isNotEmpty()) {
+        if (downloads.isNotEmpty() && viewModel.shouldShowBackgroundPrompt()) {
+            viewModel.markBackgroundPromptShown()
+            backgroundDialog = true
+        }
+    }
+    LaunchedEffect(interrupted) {
+        if (interrupted) {
+            if (snackbar.showSnackbar("Downloads were stopped by the system. Fix background settings?", "Fix") == SnackbarResult.ActionPerformed) backgroundDialog = true
+            viewModel.dismissInterruptedWarning()
+        }
+    }
+    LaunchedEffect(notificationIntent) {
+        if (notificationIntent?.getBooleanExtra("downloads", false) == true) destination = "Downloads"
+        val openId = notificationIntent?.getStringExtra("open_download")
+        val reopenId = notificationIntent?.getStringExtra("reopen_download")
+        if (openId != null || reopenId != null) {
+            val states = kotlinx.coroutines.withTimeoutOrNull(10_000) {
+                viewModel.downloads.first { list -> list.any { it.id == (openId ?: reopenId) } }
+            }
+            val state = states?.find { it.id == (openId ?: reopenId) }
+            notificationIntent?.removeExtra("open_download")
+            notificationIntent?.removeExtra("reopen_download")
+            if (state != null) {
+                if (openId != null) {
+                    try { com.alal.downloader.feature.downloads.DownloadFiles.open(context, state) }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (failure: Exception) { snackbar.showSnackbar(failure.message ?: "Cannot open download") }
+                } else { browser.reopen(state); destination = "Browser" }
+            }
+        }
+    }
+    if (backgroundDialog) AlertDialog(
+        onDismissRequest = { backgroundDialog = false },
+        title = { Text("Allow Alal to run in background") },
+        text = { Text(viewModel.backgroundAccess.instruction + " Android and OEM limits may still stop long-running downloads.") },
+        confirmButton = { TextButton(onClick = { viewModel.backgroundAccess.requestBattery(); backgroundDialog = false }) { Text("Allow background use") } },
+        dismissButton = { Row {
+            if (viewModel.backgroundAccess.hasAutostart) TextButton(onClick = viewModel.backgroundAccess::openAutostart) { Text("Open Autostart settings") }
+            TextButton(onClick = { backgroundDialog = false }) { Text("Later") }
+        } }
+    )
     DisposableEffect(browser) { onDispose { browser.close() } }
     BrowserLifecycle(browser) { clipboardUrl = it }
     LaunchedEffect(destination) {
@@ -54,7 +100,7 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
         when (destination) {
             "Browser" -> BrowserScreen(browser, content)
             "Downloads" -> DownloadsScreen(viewModel, { browser.reopen(it); destination = "Browser" }, content)
-            else -> SettingsScreen(viewModel, browser, { folder.launch(null) }, content)
+            else -> SettingsScreen(viewModel, browser, { folder.launch(null) }, content, { backgroundDialog = true })
         }
     }
     BrowserConfirmation(browser, browserViewModel, { folder.launch(null) }, { viewModel.setTree(null) })

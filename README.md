@@ -89,7 +89,7 @@ All runtime checks are **NOT RUN**: test gestures and accessible buttons; screen
 
 The engine package has no Android or UI imports. Room and Android storage implement its persistence and positional-storage boundaries. SAF uses platform DocumentsContract rather than adding the DocumentFile library. Non-seekable providers are unsupported.
 
-An active engine session runs in a dataSync foreground service with notification controls. Network loss moves work to WAITING_FOR_NETWORK; the service remains foreground but releases the wake lock until an allowed network returns. Wi-Fi only means unmetered connectivity. Manual Pause/Cancel never auto-resumes. Android force-stop cannot be survived; reopen and Resume instead. Android 15's six-hour background dataSync budget applies. No boot or automatic process-death restart is attempted.
+An active engine session runs in a dataSync foreground service with notification controls. Network loss moves work to WAITING_FOR_NETWORK; the service remains foreground but releases the wake lock until an allowed network returns. Wi-Fi only means unmetered connectivity. Manual Pause/Cancel never auto-resumes. Android force-stop cannot be survived; reopen and Resume instead. Android 15's six-hour background dataSync budget applies. Interrupted transfers now restore paused and auto-resume by default, subject to platform start restrictions. Boot and restricted-start recovery use a persisted expedited JobScheduler job (not WorkManager). When background foreground-service startup is rejected, a notification asks the user to open Alal. Background settings provide battery-exemption and OEM autostart shortcuts. See BACKGROUND-VALIDATION.md for limitations and actual validation.
 
 ## Built-in browser
 

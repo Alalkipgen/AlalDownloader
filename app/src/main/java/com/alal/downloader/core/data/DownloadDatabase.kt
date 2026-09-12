@@ -14,6 +14,7 @@ import androidx.room.Query
 import androidx.room.Relation
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
+import androidx.room.Update
 
 /** Persisted request, representation metadata and lifecycle state. */
 @Entity(tableName = "downloads")
@@ -68,15 +69,22 @@ abstract class DownloadDao {
     @Query("SELECT * FROM downloads ORDER BY rowid")
     abstract suspend fun load(): List<DownloadWithSegments>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    abstract suspend fun insertDownload(download: DownloadEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertDownload(download: DownloadEntity): Long
+
+    @Update
+    abstract suspend fun updateDownload(download: DownloadEntity)
+
+    @Query("DELETE FROM segments WHERE downloadId = :id")
+    abstract suspend fun clearSegments(id: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertSegments(segments: List<SegmentEntity>)
 
     @Transaction
     open suspend fun save(download: DownloadEntity, segments: List<SegmentEntity>) {
-        insertDownload(download)
+        if (insertDownload(download) == -1L) updateDownload(download)
+        clearSegments(download.id)
         insertSegments(segments)
     }
 }

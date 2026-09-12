@@ -55,7 +55,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
         if (shown.isEmpty()) Text("No downloads in $filter", Modifier.padding(24.dp))
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(shown, key = { it.id }) { item ->
-                val pause = item.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.WAITING_FOR_NETWORK)
+                val pause = item.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI)
                 val resume = item.status in setOf(DownloadStatus.PAUSED, DownloadStatus.FAILED, DownloadStatus.CANCELLED)
                 fun toggle() { if (pause) viewModel.pause(item.id) else if (resume) viewModel.resume(item.id) }
                 val currentToggle by rememberUpdatedState(newValue = { toggle() })

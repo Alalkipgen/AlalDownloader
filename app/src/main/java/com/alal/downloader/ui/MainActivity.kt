@@ -1,6 +1,9 @@
 package com.alal.downloader.ui
 
 import android.os.Bundle
+import android.content.Intent
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,13 +19,24 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val downloadsViewModel: DownloadsViewModel by viewModels()
     private val browserViewModel: BrowserViewModel by viewModels()
+    private var notificationIntent by mutableStateOf<Intent?>(null)
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        notificationIntent = intent
+    }
+    override fun onResume() {
+        super.onResume()
+        downloadsViewModel.recover()
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        notificationIntent = intent
         enableEdgeToEdge()
         setContent {
             val theme by downloadsViewModel.theme.collectAsStateWithLifecycle()
             AlalTheme(theme) {
-                AlalApp(downloadsViewModel, browserViewModel)
+                AlalApp(downloadsViewModel, browserViewModel, notificationIntent)
             }
         }
     }

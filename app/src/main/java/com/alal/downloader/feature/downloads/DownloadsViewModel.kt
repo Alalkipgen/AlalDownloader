@@ -28,8 +28,16 @@ class DownloadsViewModel @Inject constructor(
     private val engine: DownloadEngine,
     private val coordinator: DownloadCoordinator,
     private val settings: DownloadSettings,
+    val backgroundAccess: com.alal.downloader.core.service.BackgroundAccess,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+    val autoResume = settings.autoResume
+    val interruptedWarning = coordinator.interruptedWarning
+    fun dismissInterruptedWarning() = coordinator.dismissInterruptedWarning()
+    fun shouldShowBackgroundPrompt(): Boolean = !settings.backgroundPromptShown && !backgroundAccess.ignored()
+    fun markBackgroundPromptShown() { settings.backgroundPromptShown = true }
+    fun setAutoResume(value: Boolean) = execute { settings.setAutoResume(value) }
+    fun recover() = execute { coordinator.recover() }
     val downloads = engine.states
     val wifiOnly = settings.wifiOnly
     val treeUri = settings.treeUri
@@ -44,7 +52,7 @@ class DownloadsViewModel @Inject constructor(
     private val mutableError = MutableStateFlow<String?>(null)
     val error = mutableError.asStateFlow()
 
-    init { execute { engine.restore(); coordinator.updateTransferSettings() } }
+    init { execute { coordinator.recover(); coordinator.updateTransferSettings() } }
 
     fun add(url: String) = execute { addOne(url) }
 

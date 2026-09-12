@@ -19,11 +19,12 @@ class DownloadActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra("download_id") ?: return
         val action = intent.action ?: return
-        if (action !in setOf("pause", "resume", "cancel")) return
+        if (action !in setOf("pause", "resume", "cancel", "pause_all")) return
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 when (action) {
+                    "pause_all" -> coordinator.pauseAll()
                     "pause" -> coordinator.pause(id)
                     "resume" -> coordinator.resume(id)
                     "cancel" -> coordinator.cancel(id)

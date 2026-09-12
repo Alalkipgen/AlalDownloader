@@ -6,6 +6,10 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
+import android.net.wifi.WifiManager
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import android.util.Log
 import com.alal.downloader.core.data.DownloadSettings
 import com.alal.downloader.core.engine.DownloadEngine
@@ -35,10 +39,28 @@ class DownloadService : Service() {
     @Inject lateinit var settings: DownloadSettings
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var wakeLock: PowerManager.WakeLock
+    private lateinit var wifiLock: WifiManager.WifiLock
+    private var renewedAt = 0L
+
+    private fun updateLocks() {
+        val active = engine.states.value.any { it.status == DownloadStatus.RUNNING }
+        val now = SystemClock.elapsedRealtime()
+        if (active && (!wakeLock.isHeld || now - renewedAt >= 5 * 60_000L)) {
+            wakeLock.acquire(10 * 60_000L)
+            renewedAt = now
+        }
+        if (!active && wakeLock.isHeld) wakeLock.release()
+        if (active && network.onWifi()) {
+            if (!wifiLock.isHeld) wifiLock.acquire()
+        } else if (wifiLock.isHeld) wifiLock.release()
+    }
 
     override fun onCreate() {
         super.onCreate()
-        wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Alal:downloads")
+        wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Alal:download")
+            .apply { setReferenceCounted(false) }
+        wifiLock = applicationContext.getSystemService(WifiManager::class.java)
+            .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Alal:download")
             .apply { setReferenceCounted(false) }
         try {
             val notification = notifications.summary(engine.states.value)
@@ -73,15 +95,17 @@ class DownloadService : Service() {
             }
         }
         scope.launch {
-            engine.states.collect { states ->
-                val active = states.any { it.status == DownloadStatus.RUNNING }
-                if (active && !wakeLock.isHeld) wakeLock.acquire()
-                if (!active && wakeLock.isHeld) wakeLock.release()
+            engine.states.map { states -> states.map { it.id to it.status } }.distinctUntilChanged().collect { states ->
+                updateLocks()
+                withContext(Dispatchers.IO) {
+                    settings.wasActiveAtShutdown = states.any { it.second == DownloadStatus.RUNNING }
+                }
             }
         }
         scope.launch {
             while (isActive) {
                 delay(1_000)
+                updateLocks()
                 val snapshot = engine.states.value
                 notifications.update(snapshot)
                 withContext(Dispatchers.IO) { coordinator.stopIfIdle(snapshot) {
@@ -92,13 +116,14 @@ class DownloadService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onTimeout(startId: Int, fgsType: Int) {
         coordinator.rejectCommands(this)
         scope.cancel()
         if (wakeLock.isHeld) wakeLock.release()
+        if (wifiLock.isHeld) wifiLock.release()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try { coordinator.shutdown(this@DownloadService) } catch (failure: Exception) {
                 Log.e("DownloadService", "Timeout checkpoint failed", failure)
@@ -112,6 +137,7 @@ class DownloadService : Service() {
         coordinator.rejectCommands(this)
         scope.cancel()
         if (wakeLock.isHeld) wakeLock.release()
+        if (wifiLock.isHeld) wifiLock.release()
         coordinator.serviceStopped(this)
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try { coordinator.shutdown(this@DownloadService) } catch (failure: Exception) {

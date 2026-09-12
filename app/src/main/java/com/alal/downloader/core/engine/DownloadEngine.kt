@@ -35,6 +35,10 @@ class DownloadEngine(
     private val jobs = mutableMapOf<String, Job>()
     private var restored = false
     private var networkAllowed = true
+    private var waitingStatus = DownloadStatus.WAITING_FOR_NETWORK
+    private val interrupted = linkedSetOf<String>()
+
+    suspend fun interruptedIds(): List<String> = gate.withLock { restoreLocked(); interrupted.toList() }
     private val mutableStates = MutableStateFlow<List<DownloadState>>(emptyList())
     val states: StateFlow<List<DownloadState>> = mutableStates.asStateFlow()
 
@@ -70,7 +74,9 @@ class DownloadEngine(
 
     private suspend fun restoreLocked() {
         if (restored) return
-        val saved = store.load().map {
+        val loaded = store.load()
+        interrupted.addAll(loaded.filter { it.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI) }.map { it.id })
+        val saved = loaded.map {
             if (it.status in setOf(DownloadStatus.COMPLETED, DownloadStatus.FAILED, DownloadStatus.CANCELLED)) it else
                 try {
                     it.copy(status = DownloadStatus.PAUSED, speedBytesPerSecond = 0,
@@ -93,7 +99,7 @@ class DownloadEngine(
             "Range and If-Range headers are managed by the engine"
         }
         val snapshot = DownloadState(UUID.randomUUID().toString(), request.copy(headers = request.headers.toMap()),
-            status = if (networkAllowed) DownloadStatus.QUEUED else DownloadStatus.WAITING_FOR_NETWORK)
+            status = if (networkAllowed) DownloadStatus.QUEUED else waitingStatus)
         store.save(snapshot)
         mutableStates.update { it + snapshot }
         if (networkAllowed) enqueue(snapshot, front)
@@ -111,6 +117,7 @@ class DownloadEngine(
 
     private suspend fun stopLocked(id: String, status: DownloadStatus) {
         pending.remove(id)
+        interrupted.remove(id)
         joinStoppedJob(id)
         val current = mutableStates.value.find { it.id == id } ?: return
         if (current.status == DownloadStatus.COMPLETED) return
@@ -137,10 +144,11 @@ class DownloadEngine(
         val current = mutableStates.value.find { it.id == id } ?: error("Download no longer exists")
         check(current.canRefreshLink()) { "Download is not waiting for a replacement link" }
         pending.remove(id)
+        interrupted.remove(id)
         joinStoppedJob(id)
         val next = current.copy(
             request = current.request.copy(url = url, headers = headers.toMap()), finalUrl = url,
-            status = if (networkAllowed) DownloadStatus.QUEUED else DownloadStatus.WAITING_FOR_NETWORK,
+            status = if (networkAllowed) DownloadStatus.QUEUED else waitingStatus,
             error = null, speedBytesPerSecond = 0,
         )
         store.save(next)
@@ -152,25 +160,32 @@ class DownloadEngine(
         val current = mutableStates.value.find { it.id == id } ?: return
         if (current.status in setOf(DownloadStatus.COMPLETED, DownloadStatus.RUNNING, DownloadStatus.QUEUED)) return
         joinStoppedJob(id)
-        val next = current.copy(status = if (networkAllowed) DownloadStatus.QUEUED else DownloadStatus.WAITING_FOR_NETWORK, error = null)
+        val next = current.copy(status = if (networkAllowed) DownloadStatus.QUEUED else waitingStatus, error = null)
         store.save(next)
         publish(next)
         if (networkAllowed) enqueue(next)
     }
 
-    suspend fun setNetworkAllowed(allowed: Boolean) = gate.withLock {
+    suspend fun setNetworkAllowed(allowed: Boolean, wifiRestricted: Boolean = false) = gate.withLock {
+        val previouslyAllowed = networkAllowed
         networkAllowed = allowed
+        waitingStatus = if (wifiRestricted) DownloadStatus.WAITING_FOR_WIFI else DownloadStatus.WAITING_FOR_NETWORK
+        val waiting = setOf(DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI)
         if (!allowed) {
-            mutableStates.value.filter { it.status == DownloadStatus.RUNNING || it.status == DownloadStatus.QUEUED }
-                .forEach { stopLocked(it.id, DownloadStatus.WAITING_FOR_NETWORK) }
-        } else {
-            mutableStates.value.filter { it.status == DownloadStatus.WAITING_FOR_NETWORK }
-                .forEach { resumeLocked(it.id) }
+            val eligible = mutableStates.value.filter { it.status in waiting || it.status == DownloadStatus.RUNNING || it.status == DownloadStatus.QUEUED }.map { it.id }.toSet()
+            val order = (jobs.keys.toList() + pending.toList() + eligible).filter { it in eligible }
+            for (id in order.distinct()) stopLocked(id, waitingStatus)
+            pending.clear()
+            pending.addAll(order.distinct())
+        } else if (!previouslyAllowed) {
+            val order = pending.toList() + mutableStates.value.filter { it.status in waiting }.map { it.id }
+            pending.clear()
+            for (id in order.distinct()) resumeLocked(id)
         }
     }
 
     suspend fun pauseAll() = gate.withLock {
-        mutableStates.value.filter { it.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.WAITING_FOR_NETWORK) }
+        mutableStates.value.filter { it.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI) }
             .forEach { stopLocked(it.id, DownloadStatus.PAUSED) }
     }
 

@@ -21,6 +21,11 @@ class NetworkMonitor @Inject constructor(@ApplicationContext context: Context) {
             (!wifiOnly || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED))
     }
 
+    fun onWifi(): Boolean = manager.getNetworkCapabilities(manager.activeNetwork)
+        ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+
+    fun wifiRestricted(wifiOnly: Boolean): Boolean = wifiOnly && allowed(false) && !allowed(true)
+
     val changes = callbackFlow {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) { trySend(Unit) }

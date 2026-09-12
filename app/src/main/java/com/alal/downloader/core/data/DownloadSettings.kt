@@ -26,6 +26,23 @@ class DownloadSettings @Inject constructor(@ApplicationContext private val conte
     val speed = mutableSpeed.asStateFlow()
     val theme = mutableTheme.asStateFlow()
 
+    private val mutableAutoResume = MutableStateFlow(preferences.getBoolean("auto_resume", true))
+    val autoResume = mutableAutoResume.asStateFlow()
+    var backgroundPromptShown: Boolean
+        get() = preferences.getBoolean("background_prompt", false)
+        set(value) { preferences.edit().putBoolean("background_prompt", value).apply() }
+    var wasActiveAtShutdown: Boolean
+        get() = preferences.getBoolean("wasActiveAtShutdown", false)
+        set(value) { check(preferences.edit().putBoolean("wasActiveAtShutdown", value).commit()) }
+    var recoveryIds: Set<String>
+        get() = preferences.getStringSet("recovery_ids", emptySet()).orEmpty().toSet()
+        set(value) { check(preferences.edit().putStringSet("recovery_ids", value.toSet()).commit()) }
+
+    fun setAutoResume(value: Boolean) {
+        check(preferences.edit().putBoolean("auto_resume", value).commit())
+        mutableAutoResume.value = value
+    }
+
     fun setTransfer(segments: Int, concurrent: Int, speed: Long) {
         require(segments in 1..32 && concurrent in 1..10 && speed in 0..Long.MAX_VALUE / 1024)
         check(preferences.edit().putInt("segments", segments).putInt("concurrent", concurrent)

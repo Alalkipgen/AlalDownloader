@@ -17,7 +17,7 @@ data class DownloadRequest(
 )
 
 /** Persistable lifecycle of a download. */
-enum class DownloadStatus { QUEUED, RUNNING, WAITING_FOR_NETWORK, PAUSED, COMPLETED, FAILED, CANCELLED }
+enum class DownloadStatus { QUEUED, RUNNING, WAITING_FOR_NETWORK, WAITING_FOR_WIFI, PAUSED, COMPLETED, FAILED, CANCELLED }
 
 /** Inclusive segment boundaries and durable bytes written within them. */
 data class Segment(val index: Int, val start: Long, val end: Long, val downloaded: Long = 0) {

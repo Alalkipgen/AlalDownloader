@@ -16,7 +16,7 @@ import com.alal.downloader.feature.browser.BrowserSession
 
 /** App settings using the existing persisted transfer and browser preferences. */
 @Composable
-fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, chooseFolder: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, chooseFolder: () -> Unit, modifier: Modifier = Modifier, background: () -> Unit = {}) {
     val savedSegments by viewModel.segments.collectAsStateWithLifecycle()
     val savedConcurrent by viewModel.concurrent.collectAsStateWithLifecycle()
     val savedSpeed by viewModel.speed.collectAsStateWithLifecycle()
@@ -30,6 +30,15 @@ fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, choos
         speed.toLongOrNull()?.let { it in 0..Long.MAX_VALUE / 1024 } == true
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
+        Text("Background download", style = MaterialTheme.typography.titleMedium)
+        val autoResume by viewModel.autoResume.collectAsStateWithLifecycle()
+        Toggle("Auto-resume interrupted downloads", autoResume, viewModel::setAutoResume)
+        TextButton(onClick = background) {
+            Text("Battery optimization: ${if (viewModel.backgroundAccess.ignored()) "Ignored" else "Restricted"}")
+        }
+        if (viewModel.backgroundAccess.hasAutostart) TextButton(onClick = viewModel.backgroundAccess::openAutostart) { Text("Open Autostart settings") }
+        Text(viewModel.backgroundAccess.instruction, style = MaterialTheme.typography.bodySmall)
+        HorizontalDivider()
         OutlinedTextField(segments, { segments = it }, label = { Text("Default segments (1–32)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
         OutlinedTextField(concurrent, { concurrent = it }, label = { Text("Concurrent downloads (1–10)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
         OutlinedTextField(speed, { speed = it }, label = { Text("Speed limit (KiB/s; 0 = unlimited)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
