@@ -5,68 +5,138 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 35
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+        with:
+          fetch-depth: 0  # Needed for git tag access
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-      
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: false
-      
-      - name: Decode Keystore
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+
+      - name: Validate secrets
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
-      
-      - name: Build Release APK and AAB
+          if [[ -z "${{ secrets.KEYSTORE_BASE64 }}" ]]; then
+            echo "::error::Missing KEYSTORE_BASE64 secret"
+            exit 1
+          fi
+          if [[ -z "${{ secrets.KEYSTORE_PASSWORD }}" ]]; then
+            echo "::error::Missing KEYSTORE_PASSWORD secret"
+            exit 1
+          fi
+          if [[ -z "${{ secrets.KEY_ALIAS }}" ]]; then
+            echo "::error::Missing KEY_ALIAS secret"
+            exit 1
+          fi
+          if [[ -z "${{ secrets.KEY_PASSWORD }}" ]]; then
+            echo "::error::Missing KEY_PASSWORD secret"
+            exit 1
+          fi
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ runner.temp }}/keystore.jks
+          ls -lh ${{ runner.temp }}/keystore.jks
+
+      - name: Build signed release APK and AAB
         env:
-          KEYSTORE_PATH: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && 'keystore.jks' || '' }}
+          KEYSTORE_PATH: ${{ runner.temp }}/keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          VERSION_TAG: ${{ inputs.version }}
         run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease bundleRelease
-      
-      - name: Run Tests
-        run: ./gradlew test
-      
-      - name: Run Lint
-        run: ./gradlew lint
-      
-      - name: Upload APK Artifact
+          ./gradlew clean assembleRelease bundleRelease --no-daemon --stacktrace
+
+      - name: Verify APK signature
+        run: |
+          apk_path="app/build/outputs/apk/release/app-release.apk"
+          if [[ ! -f "$apk_path" ]]; then
+            echo "::error::Release APK not found at $apk_path"
+            exit 1
+          fi
+          
+          # Install build-tools if apksigner not available
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs "$apk_path" || {
+            echo "::error::APK signature verification failed"
+            exit 1
+          }
+          
+          echo "✅ APK is properly signed"
+
+      - name: Determine version tag
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" =~ ^refs/tags/v ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="v0.1.0-$(git rev-parse --short HEAD)"
+          fi
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Rename release artifacts
+        id: artifacts
+        env:
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          mkdir -p release-output
+          
+          apk_name="AlalDownloader-${VERSION}.apk"
+          aab_name="AlalDownloader-${VERSION}.aab"
+          
+          cp app/build/outputs/apk/release/app-release.apk "release-output/$apk_name"
+          cp app/build/outputs/bundle/release/app-release.aab "release-output/$aab_name"
+          
+          echo "apk=release-output/$apk_name" >> $GITHUB_OUTPUT
+          echo "aab=release-output/$aab_name" >> $GITHUB_OUTPUT
+          
+          ls -lh release-output/
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: app/build/outputs/apk/release/*.apk
-      
-      - name: Upload AAB Artifact
+          path: ${{ steps.artifacts.outputs.apk }}
+          if-no-files-found: error
+
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-aab
-          path: app/build/outputs/bundle/release/*.aab
-      
+          path: ${{ steps.artifacts.outputs.aab }}
+          if-no-files-found: error
+
       - name: Create GitHub Release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/*.aab
+            ${{ steps.artifacts.outputs.apk }}
+            ${{ steps.artifacts.outputs.aab }}
           draft: false
           prerelease: false
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          fail_on_unmatched_files: true

@@ -6,16 +6,24 @@ plugins {
     alias(libs.plugins.hilt.android)
 }
 
-val signingEnvironment = listOf("KEYSTORE_PATH", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
-    .associateWith { providers.environmentVariable(it).orNull?.takeIf(String::isNotBlank) }
-val hasReleaseSigning = signingEnvironment.values.all { it != null }
-require(hasReleaseSigning || signingEnvironment.values.all { it == null }) {
-    "Release signing requires all four variables: KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD"
-}
+// Derive version from git tag (v1.2.3 -> 1.2.3) or default to 0.1.0
 val buildTag = providers.environmentVariable("GITHUB_REF").orNull
     ?.takeIf { it.startsWith("refs/tags/v") }?.removePrefix("refs/tags/v")
+    ?: providers.environmentVariable("VERSION_TAG").orNull // Manual workflow_dispatch
+val appVersionName = buildTag?.takeIf(String::isNotBlank) ?: "0.1.0"
+
+// Monotonic versionCode from GITHUB_RUN_NUMBER or default to 1
 val ciVersionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull
     ?.toIntOrNull()?.takeIf { it in 1..2_100_000_000 } ?: 1
+
+// Check for release signing credentials (prefer env vars for CI)
+val signingEnvironment = mapOf(
+    "KEYSTORE_PATH" to providers.environmentVariable("KEYSTORE_PATH").orNull,
+    "KEYSTORE_PASSWORD" to providers.environmentVariable("KEYSTORE_PASSWORD").orNull,
+    "KEY_ALIAS" to providers.environmentVariable("KEY_ALIAS").orNull,
+    "KEY_PASSWORD" to providers.environmentVariable("KEY_PASSWORD").orNull
+)
+val hasReleaseSigning = signingEnvironment.values.all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.alal.downloader"
@@ -27,17 +35,36 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = ciVersionCode
-        versionName = buildTag?.takeIf(String::isNotBlank) ?: "0.1.0"
+        versionName = appVersionName
+    }
+    
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/LICENSE.md",
+                "META-INF/LICENSE-notice.md",
+                "META-INF/DEPENDENCIES",
+                "META-INF/NOTICE",
+                "META-INF/LICENSE",
+                "META-INF/INDEX.LIST"
+            )
+        }
     }
 
     signingConfigs {
         create("release") {
             if (hasReleaseSigning) {
-                storeFile = rootProject.file(requireNotNull(signingEnvironment["KEYSTORE_PATH"]))
+                val keystorePath = signingEnvironment["KEYSTORE_PATH"]!!
+                storeFile = rootProject.file(keystorePath)
                 storePassword = signingEnvironment["KEYSTORE_PASSWORD"]
                 keyAlias = signingEnvironment["KEY_ALIAS"]
                 keyPassword = signingEnvironment["KEY_PASSWORD"]
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
             } else {
+                // Fall back to debug signing when no credentials (allows local assembleRelease)
                 initWith(getByName("debug"))
             }
         }
@@ -47,11 +74,14 @@ android {
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
+            isDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")
         }
         getByName("debug") {
             applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            isDebuggable = true
         }
     }
 

@@ -6,6 +6,50 @@ Replace `OWNER/REPOSITORY` in the badge with your GitHub repository after publis
 
 Native Kotlin Android download manager, minSdk 24 and targetSdk 35, using Compose, Coroutines/Flow, OkHttp 4.12.0, Room and Hilt. Gradle Kotlin DSL and version catalog pin dependencies.
 
+## Release Builds
+
+### Generate Keystore
+
+```bash
+keytool -genkeypair -v -keystore keystore.jks -alias alal \
+  -keyalg RSA -keysize 4096 -validity 10000 \
+  -dname "CN=Alal Downloader,O=Alal,C=US"
+```
+
+### Configure GitHub Secrets
+
+Go to **Settings → Secrets and variables → Actions** and add:
+
+1. **KEYSTORE_BASE64** - Base64-encoded keystore:
+   ```bash
+   # Linux/Mac
+   base64 -w 0 keystore.jks
+   
+   # Windows
+   certutil -encode keystore.jks keystore.txt
+   # Then remove BEGIN/END CERTIFICATE lines and newlines
+   ```
+
+2. **KEYSTORE_PASSWORD** - Your keystore password
+3. **KEY_ALIAS** - Key alias (e.g., `alal`)
+4. **KEY_PASSWORD** - Key password
+
+### Cut a Release
+
+```bash
+git tag -a v1.0.0 -m "Release 1.0.0"
+git push origin v1.0.0
+```
+
+The GitHub Actions workflow will automatically:
+- Build signed release APK and AAB
+- Verify APK signature with apksigner
+- Create a GitHub Release with both files attached
+
+### Manual Release (workflow_dispatch)
+
+Go to **Actions → Release Build → Run workflow** and optionally specify a version tag.
+
 ## Features
 
 - Segmented HTTP(S) downloads with pause/resume, validator checks, retries, and durable checkpoints.
