@@ -59,13 +59,16 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
     val focus = LocalFocusManager.current
     LaunchedEffect(tab?.url) { address = tab?.url.orEmpty() }
     BackHandler(enabled = tab?.back == true) { tab?.webView?.goBack() }
-    Column(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
             OutlinedTextField(address, { address = it }, Modifier.weight(1f), singleLine = true,
-                label = { Text("URL or DuckDuckGo search") },
+                label = { Text("Search or type URL") },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, keyboardType = KeyboardType.Uri),
                 keyboardActions = KeyboardActions(onGo = { focus.clearFocus(); session.navigate(address) }))
             TextButton(onClick = { focus.clearFocus(); session.navigate(address) }) { Text("Go") }
+        }
+        if (tab != null && tab.progress < 100) {
+            LinearProgressIndicator(progress = { tab.progress / 100f }, modifier = Modifier.fillMaxWidth())
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
             TextButton(onClick = { tab?.webView?.goBack() }, enabled = tab?.back == true) { Text("Back") }

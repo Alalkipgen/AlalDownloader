@@ -147,13 +147,19 @@ class BrowserSession(private val context: Context) {
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     private fun createTab(): BrowserTab {
-        val view = WebView(context)
+        val view = WebView(context).apply {
+            layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
         val tab = BrowserTab(UUID.randomUUID().toString(), view)
         view.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             @Suppress("DEPRECATION")
             databaseEnabled = true
+            loadsImagesAutomatically = true
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             setSupportMultipleWindows(true)

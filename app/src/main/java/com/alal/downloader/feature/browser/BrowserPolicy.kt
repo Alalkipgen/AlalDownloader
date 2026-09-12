@@ -7,7 +7,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /** Pure URL, filename and refresh matching rules shared by browser capture paths. */
 object BrowserPolicy {
-    const val HOME = "https://duckduckgo.com/"
+    const val HOME = "https://www.google.com"
     const val EXTENSIONS = "zip rar 7z tar gz bz2 xz mp4 mkv webm avi mov apk apks pdf iso exe msi mp3 m4a flac wav ogg epub mobi doc docx xls xlsx ppt pptx"
     private val mediaExtensions = setOf("mp4", "mkv", "webm", "mp3", "m4a", "flac", "wav", "ogg", "m3u8", "mpd")
 
@@ -24,7 +24,7 @@ object BrowserPolicy {
         return search(value)
     }
 
-    private fun search(value: String) = HOME + "?q=" + URLEncoder.encode(value, "UTF-8")
+    private fun search(value: String) = "https://www.google.com/search?q=" + URLEncoder.encode(value, "UTF-8")
 
     fun sanitize(value: String): String = com.alal.downloader.core.engine.FileNames.sanitize(value)
 
