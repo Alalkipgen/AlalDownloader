@@ -80,9 +80,7 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
             }
         }
         Box(Modifier.fillMaxWidth().height(3.dp).padding(horizontal = 24.dp)) {
-            AnimatedVisibility(loading, exit = fadeOut(tween(200))) {
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(2.5.dp), trackColor = MaterialTheme.colorScheme.primaryContainer)
-            }
+            BrowserLoadingProgress(loading, progress)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             ChromeButton(Icons.Outlined.ArrowBack, "Back", enabled = tab?.back == true) { tab?.webView?.goBack() }
@@ -93,6 +91,13 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
             ChromeButton(Icons.Outlined.Download, "Media candidates", count = tab?.media?.size ?: 0, click = media)
             ChromeButton(Icons.Outlined.MoreVert, "Browser menu", click = more)
         }
+    }
+}
+
+@Composable
+private fun BrowserLoadingProgress(loading: Boolean, progress: Float) {
+    AnimatedVisibility(loading, exit = fadeOut(tween(200))) {
+        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(2.5.dp), trackColor = MaterialTheme.colorScheme.primaryContainer)
     }
 }
 
