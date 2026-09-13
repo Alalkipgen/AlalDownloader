@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -169,8 +170,12 @@ internal fun TransferControls(viewModel: DownloadsViewModel, applied: () -> Unit
     var limited by remember(savedSpeed) { mutableStateOf(savedSpeed > 0) }
     var pending by remember { mutableStateOf<Triple<Int, Int, Long>?>(null) }
     val onApplied by rememberUpdatedState(applied)
+    val currentPending by rememberUpdatedState(pending)
+    DisposableEffect(viewModel) {
+        onDispose { currentPending?.let { viewModel.setTransfer(it.first, it.second, it.third) } }
+    }
     fun submit() {
-        val rate = if (limited) speed.toLongOrNull()?.takeIf { it in 1..Long.MAX_VALUE / 1024 } ?: return else 0L
+        val rate = if (limited) speed.toLongOrNull()?.takeIf { it in 1..Long.MAX_VALUE / 1024 } ?: run { pending = null; return } else 0L
         pending = Triple(segments, concurrent, rate)
     }
     LaunchedEffect(pending) {
@@ -189,7 +194,7 @@ internal fun TransferControls(viewModel: DownloadsViewModel, applied: () -> Unit
             OutlinedTextField(speed, { speed = it; submit() }, label = { Text("KiB/s") }, singleLine = true,
                 isError = speed.toLongOrNull()?.let { it in 1..Long.MAX_VALUE / 1024 } != true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf(256, 512, 1024, 2048).forEach { rate ->
                     SuggestionChip(onClick = { speed = rate.toString(); submit() }, label = { Text("$rate", style = MaterialTheme.typography.bodySmall) })
                 }

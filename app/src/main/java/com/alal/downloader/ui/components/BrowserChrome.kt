@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
@@ -39,6 +40,7 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
     val tab = session.active
     var address by remember(tab?.id) { mutableStateOf(TextFieldValue(tab?.url.orEmpty())) }
     var editing by remember { mutableStateOf(false) }
+    var acquiredFocus by remember { mutableStateOf(false) }
     var homeEmpty by remember(tab?.id) { mutableStateOf(false) }
     var stopped by remember(tab?.id, tab?.finishedLoads, tab?.url) { mutableStateOf(false) }
     val focus = LocalFocusManager.current
@@ -59,7 +61,10 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
                     textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, keyboardType = KeyboardType.Uri), keyboardActions = KeyboardActions(onGo = { navigate() }),
-                    modifier = Modifier.fillMaxWidth().focusRequester(requester))
+                    modifier = Modifier.fillMaxWidth().focusRequester(requester).onFocusChanged {
+                        if (it.isFocused) acquiredFocus = true
+                        else if (acquiredFocus) { editing = false; acquiredFocus = false }
+                    })
                 else Row(Modifier.fillMaxWidth().clickable { address = TextFieldValue(tab?.url.orEmpty(), TextRange(0, tab?.url.orEmpty().length)); editing = true }, verticalAlignment = Alignment.CenterVertically) {
                     val parsed = address.text.toHttpUrlOrNull()
                     if (parsed == null) Text("Search or type URL", color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, fontSize = 14.sp)

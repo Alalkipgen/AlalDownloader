@@ -122,8 +122,8 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                     IconButton(onClick = { if (selected.isNotEmpty()) selected = emptySet() else scope.launch { drawer.open() } }, modifier = Modifier.size(40.dp)) { Icon(if (selected.isEmpty()) Icons.Outlined.Menu else Icons.Outlined.Close, "Navigation") }
                     Text(if (selected.isEmpty()) "Downloads" else "${selected.size} selected", Modifier.weight(1f), style = if (selected.isEmpty()) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, maxLines = 1)
                     if (selected.isNotEmpty()) {
-                        IconButton(onClick = { selected.forEach(viewModel::pause); selected = emptySet() }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.Pause, "Pause selected") }
-                        IconButton(onClick = { selected.forEach(viewModel::resume); selected = emptySet() }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.PlayArrow, "Resume selected") }
+                        IconButton(onClick = { selected.forEach { viewModel.pause(it) }; selected = emptySet() }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.Pause, "Pause selected") }
+                        IconButton(onClick = { selected.forEach { viewModel.resume(it) }; selected = emptySet() }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.PlayArrow, "Resume selected") }
                         IconButton(onClick = { deletion = selected }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.Delete, "Delete selected") }
                     } else {
                         IconButton(onClick = { searching = !searching; if (!searching) search = "" }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.Search, "Search downloads") }

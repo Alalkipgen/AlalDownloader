@@ -72,6 +72,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -148,7 +151,8 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
                         androidx.compose.material3.Card(Modifier.weight(1f).padding(vertical = 5.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { session.closeTab(item.id) }) { Icon(Icons.Filled.Close, "Close tab") }
-                                Icon(Icons.Filled.Home, null)
+                                val favicon = item.webView.favicon
+                                if (favicon != null) Image(favicon.asImageBitmap(), null, Modifier.size(24.dp)) else Icon(Icons.Filled.Home, null)
                             }
                             TextButton(onClick = {
                                 session.active?.webView?.onPause()
