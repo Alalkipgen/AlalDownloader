@@ -6,6 +6,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -37,7 +39,10 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alal.downloader.feature.browser.historyRepository
-import kotlinx.coroutines.flow.flowOf
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.alal.downloader.feature.browser.HistorySuggestionsViewModel
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 
 @Composable
 fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, more: () -> Unit, navigateBack: () -> Unit) {
@@ -51,9 +56,12 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
     var homeEmpty by remember(tab?.id) { mutableStateOf(false) }
     var stopped by remember(tab?.id, tab?.finishedLoads, tab?.url) { mutableStateOf(false) }
     val focus = LocalFocusManager.current
-    val suggestions by remember(history, address.text, editing) {
-        if (editing && address.text.length >= 2) history.suggestions(address.text) else flowOf(emptyList())
-    }.collectAsStateWithLifecycle(emptyList())
+    val suggestionsModel: HistorySuggestionsViewModel = viewModel()
+    val suggestions by suggestionsModel.suggestions.collectAsStateWithLifecycle()
+    LaunchedEffect(address.text, editing, tab?.id) {
+        suggestionsModel.update(if (editing) address.text else "")
+    }
+    DisposableEffect(suggestionsModel) { onDispose { suggestionsModel.update("") } }
     DisposableEffect(tab?.webView) {
         val view = tab?.webView
         var x = view?.scrollX
@@ -81,15 +89,15 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
                 if (incognito || (!editing && address.text.isNotEmpty())) Icon(if (incognito) Icons.Outlined.VisibilityOff else Icons.Outlined.Lock, if (incognito) "Incognito" else "Connection security", Modifier.size(15.dp), tint = if (incognito) Accent2 else if (tab?.url?.startsWith("https://") == true) Ok else Warn)
                 Spacer(Modifier.width(7.dp))
                 Box(Modifier.weight(1f)) {
-                    if (editing) BasicTextField(address, { address = it }, singleLine = true,
+                    BasicTextField(address, { address = it }, singleLine = true,
                         textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, keyboardType = KeyboardType.Uri), keyboardActions = KeyboardActions(onGo = { navigate() }),
                         modifier = Modifier.fillMaxWidth().focusRequester(requester).onFocusChanged {
-                            if (it.isFocused) acquiredFocus = true
+                            if (it.isFocused) { acquiredFocus = true; editing = true }
                             else if (acquiredFocus) { editing = false; acquiredFocus = false }
                         })
-                    else Row(Modifier.fillMaxWidth().clickable { address = TextFieldValue(tab?.url.orEmpty(), TextRange(0, tab?.url.orEmpty().length)); editing = true }, verticalAlignment = Alignment.CenterVertically) {
+                    if (!editing) Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).clickable { address = TextFieldValue(tab?.url.orEmpty(), TextRange(0, tab?.url.orEmpty().length)); editing = true }, verticalAlignment = Alignment.CenterVertically) {
                         val parsed = address.text.toHttpUrlOrNull()
                         if (parsed == null) Text("Search or type URL", color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, fontSize = 14.sp)
                         else {
@@ -107,26 +115,34 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
         Box(Modifier.fillMaxWidth().height(3.dp).padding(horizontal = 24.dp)) {
             BrowserLoadingProgress(loading, progress)
         }
-        if (editing && acquiredFocus && address.text.length >= 2) Surface(Modifier.fillMaxWidth().padding(horizontal = 12.dp), shape = IconShape, tonalElevation = 3.dp) {
-            Column {
-                suggestions.forEach { entry ->
-                    Row(Modifier.fillMaxWidth().clickable { address = TextFieldValue(entry.url); navigate() }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        HistoryFavicon(entry.faviconUrl)
-                        Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(entry.host, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+        Box(Modifier.fillMaxWidth()) {
+            if (editing && acquiredFocus && address.text.trim().length >= 2) Popup(
+                alignment = Alignment.TopStart,
+                onDismissRequest = { focus.clearFocus(); editing = false },
+                properties = PopupProperties(focusable = false),
+            ) {
+            Surface(Modifier.fillMaxWidth().padding(horizontal = 12.dp).heightIn(max = 300.dp), shape = IconShape, tonalElevation = 3.dp) {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    suggestions.forEach { entry ->
+                        Row(Modifier.fillMaxWidth().clickable { address = TextFieldValue(entry.url); navigate() }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            HistoryFavicon(entry.faviconUrl)
+                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                                Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(entry.host, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                            }
+                            Icon(Icons.Outlined.History, "From history", Modifier.size(18.dp))
                         }
-                        Icon(Icons.Outlined.History, "From history", Modifier.size(18.dp))
+                    }
+                    Row(Modifier.fillMaxWidth().clickable {
+                        val query = address.text
+                        address = TextFieldValue("https://www.google.com/search?q=" + java.net.URLEncoder.encode(query, "UTF-8"))
+                        navigate()
+                    }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Search, null)
+                        Text("Search Google for ${address.text}", Modifier.padding(start = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Row(Modifier.fillMaxWidth().clickable {
-                    val query = address.text
-                    address = TextFieldValue("https://www.google.com/search?q=" + java.net.URLEncoder.encode(query, "UTF-8"))
-                    navigate()
-                }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Search, null)
-                    Text("Search Google for ${address.text}", Modifier.padding(start = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+            }
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {

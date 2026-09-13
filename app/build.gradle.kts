@@ -36,6 +36,7 @@ android {
         targetSdk = 35
         versionCode = ciVersionCode
         versionName = appVersionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     
     packaging {
@@ -50,6 +51,7 @@ android {
             )
         }
     }
+    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
     signingConfigs {
         create("release") {
@@ -133,4 +135,8 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     ksp(libs.hilt.compiler)
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.test.runner)
 }

@@ -51,6 +51,8 @@ fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, choos
     val snackbar = remember { SnackbarHostState() }
     var extensions by remember { mutableStateOf(false) }
     var licenses by remember { mutableStateOf(false) }
+    var showCrash by remember { mutableStateOf(false) }
+    var crashReport by remember { mutableStateOf<String?>(null) }
     var allowed by remember { mutableStateOf(viewModel.backgroundAccess.ignored()) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -110,6 +112,12 @@ fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, choos
                     if (Build.VERSION.SDK_INT >= 31) SettingsToggle("Dynamic color", "Use colors from your wallpaper", dynamic, setDynamic)
                 } }
                 item { SettingsGroup("ABOUT") {
+                    SettingsLink("Last crash log", "View, copy or share the saved report", {
+                        scope.launch {
+                            crashReport = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.alal.downloader.CrashLog.read(context) }
+                            showCrash = true
+                        }
+                    })
                     Text("Alal Downloader ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", Modifier.padding(14.dp))
                     SettingsLink("Open-source licenses", "AndroidX · Kotlin · OkHttp · Hilt", { licenses = true })
                     SettingsLink("GitHub repository", "Alalkipgen/AlalDownloader", { open("https://github.com/Alalkipgen/AlalDownloader") })
@@ -118,6 +126,7 @@ fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, choos
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
+    if (showCrash) CrashLogDialog("Last crash log", crashReport) { showCrash = false }
     if (extensions) AlertDialog(onDismissRequest = { extensions = false }, title = { Text("Download extensions") }, text = {
         OutlinedTextField(browser.extensions, { browser.extensions = it; browser.settings.extensions = it }, label = { Text("Space-separated extensions") })
     }, confirmButton = { TextButton(onClick = { extensions = false }) { Text("Done") } })

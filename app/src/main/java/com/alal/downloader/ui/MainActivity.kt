@@ -52,6 +52,7 @@ class MainActivity : ComponentActivity() {
                 }) {
             AlalTheme(effectiveTheme, dynamic) {
                 AlalApp(downloadsViewModel, browserViewModel, browserHostViewModel.session, notificationIntent)
+                PreviousCrashNotice()
             }
             }
         }
