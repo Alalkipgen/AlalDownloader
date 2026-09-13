@@ -5,18 +5,17 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,11 +25,11 @@ import com.alal.downloader.feature.downloads.DownloadsViewModel
 import com.alal.downloader.feature.downloads.SettingsScreen
 
 @Composable
-internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserViewModel, notificationIntent: android.content.Intent? = null) {
+internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserViewModel, browser: BrowserSession, notificationIntent: android.content.Intent? = null) {
     val context = LocalContext.current
     val tick = rememberUiTick()
-    val browser = remember(context) { BrowserSession(context) }
     var destination by rememberSaveable { mutableStateOf("Downloads") }
+    val screenState = rememberSaveableStateHolder()
     var clipboardUrl by remember { mutableStateOf<String?>(null) }
     val error by viewModel.error.collectAsStateWithLifecycle()
     val message by browserViewModel.message.collectAsStateWithLifecycle()
@@ -80,15 +79,25 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
             TextButton(onClick = { backgroundDialog = false }) { Text("Later") }
         } }
     )
-    DisposableEffect(browser) { onDispose { browser.close() } }
     BrowserLifecycle(browser) { clipboardUrl = it }
+    BackHandler(enabled = destination != "Downloads") {
+        if (destination == "Browser" && browser.active?.webView?.canGoBack() == true) browser.active?.webView?.goBack()
+        else destination = "Downloads"
+    }
     LaunchedEffect(destination) {
         browser.visible = destination == "Browser"
         android.util.Log.d("Browser", "destination=$destination tabs=${browser.tabs.size}")
         if (browser.visible) browser.resume() else browser.pause()
     }
     LaunchedEffect(error) { error?.let { snackbar.showSnackbar(it); viewModel.clearError() } }
-    LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); browserViewModel.clearMessage() } }
+    LaunchedEffect(message) {
+        message?.let {
+            val queued = it == "Download submitted at front of queue"
+            val result = snackbar.showSnackbar(if (queued) "Added to queue" else it, actionLabel = if (queued) "View" else null)
+            browserViewModel.clearMessage()
+            if (queued && result == SnackbarResult.ActionPerformed) destination = "Downloads"
+        }
+    }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) browser.directProgress = "Notifications disabled; download controls remain available in the app"
     }
@@ -97,27 +106,24 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             permission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
-    Scaffold(modifier = Modifier.fillMaxSize().safeDrawingPadding(), snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
-        Column {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
-        NavigationBar(modifier = Modifier.height(84.dp), windowInsets = WindowInsets(0, 0, 0, 0),
-            containerColor = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF101017) else MaterialTheme.colorScheme.surface) {
-            listOf("Browser", "Downloads", "Settings").forEach { item ->
-                NavigationBarItem(selected = destination == item, onClick = { if (destination != item) { tick(); destination = item } },
-                    colors = NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer, indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        unselectedIconColor = Color(0xFF5F5F78), unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant),
-                    icon = { Icon(when (item) { "Browser" -> Icons.Outlined.Language; "Downloads" -> Icons.Outlined.Download; else -> Icons.Outlined.Settings }, item) },
-                    label = { Text(item, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) })
+    Scaffold(modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+        snackbarHost = { SnackbarHost(snackbar, Modifier.navigationBarsPadding()) }) { padding ->
+        AnimatedContent(destination, modifier = Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize(),
+            transitionSpec = {
+                val direction = if (targetState == "Downloads") AnimatedContentTransitionScope.SlideDirection.Right else AnimatedContentTransitionScope.SlideDirection.Left
+                slideIntoContainer(direction, tween(250)) togetherWith slideOutOfContainer(direction, tween(250))
+            }, label = "screen navigation") { route ->
+            screenState.SaveableStateProvider(route) {
+                val content = Modifier.fillMaxSize()
+                when (route) {
+                    "Browser" -> BrowserScreen(browser, content.navigationBarsPadding(), { tick(); destination = "Downloads" })
+                    "Downloads" -> DownloadsScreen(viewModel, { browser.reopen(it); destination = "Browser" }, content, { folder.launch(null) },
+                        openBrowser = { tick(); destination = "Browser" }, openSettings = { tick(); destination = "Settings" })
+                    else -> SettingsScreen(viewModel, browser, { folder.launch(null) }, content.navigationBarsPadding(), { backgroundDialog = true },
+                        navigateBack = { tick(); destination = "Downloads" })
+                }
             }
-        }
-        }
-    }) { padding ->
-        val content = Modifier.padding(padding).fillMaxSize()
-        when (destination) {
-            "Browser" -> BrowserScreen(browser, content)
-            "Downloads" -> DownloadsScreen(viewModel, { browser.reopen(it); destination = "Browser" }, content, { folder.launch(null) })
-            else -> SettingsScreen(viewModel, browser, { folder.launch(null) }, content, { backgroundDialog = true })
         }
     }
     BrowserConfirmation(browser, browserViewModel, { folder.launch(null) }, { viewModel.setTree(null) })

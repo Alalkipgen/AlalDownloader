@@ -37,7 +37,7 @@ import com.alal.downloader.feature.browser.BrowserSession
 
 /** App settings using the existing persisted transfer and browser preferences. */
 @Composable
-fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, chooseFolder: () -> Unit, modifier: Modifier = Modifier, background: () -> Unit = {}) {
+fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, chooseFolder: () -> Unit, modifier: Modifier = Modifier, background: () -> Unit = {}, navigateBack: () -> Unit) {
     val wifi by viewModel.wifiOnly.collectAsStateWithLifecycle()
     val tree by viewModel.treeUri.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -63,53 +63,58 @@ fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, choos
             .onFailure { scope.launch { snackbar.showSnackbar("No browser available") } }
     }
     Box(modifier.fillMaxSize()) {
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item { Text("Settings", style = MaterialTheme.typography.headlineSmall) }
-            item { SettingsGroup("TRANSFERS") { TransferControls(viewModel) { scope.launch { snackbar.showSnackbar("Applied") } } } }
-            item { SettingsGroup("STORAGE") {
-                SettingsLink("Download location", tree ?: "/storage/emulated/0/Download/Alal", chooseFolder, monospace = true)
-                if (tree != null && Build.VERSION.SDK_INT >= 29) TextButton(onClick = { viewModel.setTree(null) }) { Text("Use Downloads folder") }
-            } }
-            item { SettingsGroup("RELIABILITY") {
-                SettingsToggle("Auto-resume interrupted", "Retries when the network returns", autoResume, viewModel::setAutoResume)
-                SettingsToggle("Wi-Fi only", "Pause on mobile data", wifi, viewModel::setWifiOnly)
-                SettingsToggle("Haptic feedback", "On start, finish and errors", haptics, settings::setHaptics)
-                Row(Modifier.fillMaxWidth().clickable(enabled = !allowed) { viewModel.backgroundAccess.requestBattery() }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Battery optimization: ${if (allowed) "Allowed" else "Restricted"}", color = if (allowed) Ok else Warn)
-                        Text(if (allowed) "Background downloads allowed" else "Tap to allow background downloads", style = MaterialTheme.typography.bodySmall)
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = navigateBack, modifier = Modifier.size(40.dp)) { Icon(Icons.Outlined.ArrowBack, "Back to Downloads") }
+                Text("Settings", style = MaterialTheme.typography.titleLarge)
+            }
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                item { SettingsGroup("TRANSFERS") { TransferControls(viewModel) { scope.launch { snackbar.showSnackbar("Applied") } } } }
+                item { SettingsGroup("STORAGE") {
+                    SettingsLink("Download location", tree ?: "/storage/emulated/0/Download/Alal", chooseFolder, monospace = true)
+                    if (tree != null && Build.VERSION.SDK_INT >= 29) TextButton(onClick = { viewModel.setTree(null) }) { Text("Use Downloads folder") }
+                } }
+                item { SettingsGroup("RELIABILITY") {
+                    SettingsToggle("Auto-resume interrupted", "Retries when the network returns", autoResume, viewModel::setAutoResume)
+                    SettingsToggle("Wi-Fi only", "Pause on mobile data", wifi, viewModel::setWifiOnly)
+                    SettingsToggle("Haptic feedback", "On start, finish and errors", haptics, settings::setHaptics)
+                    Row(Modifier.fillMaxWidth().clickable(enabled = !allowed) { viewModel.backgroundAccess.requestBattery() }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Battery optimization: ${if (allowed) "Allowed" else "Restricted"}", color = if (allowed) Ok else Warn)
+                            Text(if (allowed) "Background downloads allowed" else "Tap to allow background downloads", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Icon(if (allowed) Icons.Outlined.CheckCircle else Icons.Outlined.ChevronRight, null, tint = if (allowed) Ok else Warn)
                     }
-                    Icon(if (allowed) Icons.Outlined.CheckCircle else Icons.Outlined.ChevronRight, null, tint = if (allowed) Ok else Warn)
-                }
-                if (viewModel.backgroundAccess.hasAutostart) SettingsLink("Autostart", viewModel.backgroundAccess.instruction, viewModel.backgroundAccess::openAutostart)
-            } }
-            item { SettingsGroup("BROWSER") {
-                SettingsToggle("Block obvious popups", null, browser.blockPopups) { value ->
-                    browser.blockPopups = value; browser.settings.blockPopups = value
-                    browser.tabs.forEach { it.webView.settings.javaScriptCanOpenWindowsAutomatically = !value }
-                }
-                SettingsToggle("Desktop mode", null, browser.desktop, browser::setDesktopMode)
-                SettingsToggle("Clipboard suggestions", "While the app is in the foreground", browser.clipboardEnabled) { browser.clipboardEnabled = it; browser.settings.clipboard = it }
-                SettingsToggle("Media candidates", "URL based, not MIME-confirmed", browser.mediaEnabled) { browser.mediaEnabled = it; browser.settings.media = it }
-                SettingsLink("Download extensions", browser.extensions, { extensions = true })
-            } }
-            item { SettingsGroup("APPEARANCE") {
-                Text("Theme", Modifier.padding(start = 14.dp, top = 14.dp))
-                val effectiveTheme = if (context.getSharedPreferences("download_settings", 0).contains("theme")) theme else "system"
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(14.dp)) {
-                    listOf("system", "dark", "light").forEachIndexed { index, value ->
-                        SegmentedButton(selected = effectiveTheme == value, onClick = { viewModel.setTheme(value) }, shape = SegmentedButtonDefaults.itemShape(index, 3)) {
-                            Text(value.replaceFirstChar { it.uppercase() })
+                    if (viewModel.backgroundAccess.hasAutostart) SettingsLink("Autostart", viewModel.backgroundAccess.instruction, viewModel.backgroundAccess::openAutostart)
+                } }
+                item { SettingsGroup("BROWSER") {
+                    SettingsToggle("Block obvious popups", null, browser.blockPopups) { value ->
+                        browser.blockPopups = value; browser.settings.blockPopups = value
+                        browser.tabs.forEach { it.webView.settings.javaScriptCanOpenWindowsAutomatically = !value }
+                    }
+                    SettingsToggle("Desktop mode", null, browser.desktop, browser::setDesktopMode)
+                    SettingsToggle("Clipboard suggestions", "While the app is in the foreground", browser.clipboardEnabled) { browser.clipboardEnabled = it; browser.settings.clipboard = it }
+                    SettingsToggle("Media candidates", "URL based, not MIME-confirmed", browser.mediaEnabled) { browser.mediaEnabled = it; browser.settings.media = it }
+                    SettingsLink("Download extensions", browser.extensions, { extensions = true })
+                } }
+                item { SettingsGroup("APPEARANCE") {
+                    Text("Theme", Modifier.padding(start = 14.dp, top = 14.dp))
+                    val effectiveTheme = if (context.getSharedPreferences("download_settings", 0).contains("theme")) theme else "system"
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(14.dp)) {
+                        listOf("system", "dark", "light").forEachIndexed { index, value ->
+                            SegmentedButton(selected = effectiveTheme == value, onClick = { viewModel.setTheme(value) }, shape = SegmentedButtonDefaults.itemShape(index, 3)) {
+                                Text(value.replaceFirstChar { it.uppercase() })
+                            }
                         }
                     }
-                }
-                if (Build.VERSION.SDK_INT >= 31) SettingsToggle("Dynamic color", "Use colors from your wallpaper", dynamic, setDynamic)
-            } }
-            item { SettingsGroup("ABOUT") {
-                Text("Alal Downloader ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", Modifier.padding(14.dp))
-                SettingsLink("Open-source licenses", "AndroidX · Kotlin · OkHttp · Hilt", { licenses = true })
-                SettingsLink("GitHub repository", "Alalkipgen/AlalDownloader", { open("https://github.com/Alalkipgen/AlalDownloader") })
-            } }
+                    if (Build.VERSION.SDK_INT >= 31) SettingsToggle("Dynamic color", "Use colors from your wallpaper", dynamic, setDynamic)
+                } }
+                item { SettingsGroup("ABOUT") {
+                    Text("Alal Downloader ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", Modifier.padding(14.dp))
+                    SettingsLink("Open-source licenses", "AndroidX · Kotlin · OkHttp · Hilt", { licenses = true })
+                    SettingsLink("GitHub repository", "Alalkipgen/AlalDownloader", { open("https://github.com/Alalkipgen/AlalDownloader") })
+                } }
+            }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }

@@ -24,7 +24,7 @@ fun AddSpeedDial(expanded: Boolean, toggle: () -> Unit, add: () -> Unit, clipboa
     val rotation by animateFloatAsState(if (expanded) 45f else 0f, tween(200), label = "add rotation")
     Box(Modifier.fillMaxSize()) {
         if (expanded) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(onClick = toggle))
-        Column(Modifier.align(Alignment.BottomEnd).padding(20.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(20.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val actions = listOf(Triple("Import from text file", Color(0xFF4CAF50), importFile), Triple("From clipboard", Color(0xFFFF7043), clipboard), Triple("Add link", Color(0xFF4A6CF7), add))
             actions.forEachIndexed { index, (label, color, action) ->
                 AnimatedVisibility(expanded, enter = fadeIn(tween(180, index * 60)) + scaleIn(tween(180, index * 60)), exit = fadeOut(tween(100)) + scaleOut(tween(100))) {

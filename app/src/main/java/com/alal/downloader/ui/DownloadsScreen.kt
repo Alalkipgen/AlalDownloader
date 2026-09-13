@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -38,7 +39,7 @@ import kotlinx.coroutines.*
 /** Download dashboard using the existing state and command boundary. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Unit, modifier: Modifier = Modifier, chooseFolder: () -> Unit = {}) {
+fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Unit, modifier: Modifier = Modifier, chooseFolder: () -> Unit = {}, openBrowser: () -> Unit, openSettings: () -> Unit) {
     val live by viewModel.downloads.collectAsStateWithLifecycle()
     val latest by rememberUpdatedState(live)
     var downloads by remember { mutableStateOf(live) }
@@ -113,28 +114,31 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                     SettingsLink("Download location", tree ?: "/storage/emulated/0/Download/Alal", chooseFolder)
                     TransferControls(viewModel)
                 }
+                NavigationDrawerItem(selected = false, label = { Text("Settings") }, icon = { Icon(Icons.Outlined.Settings, null) },
+                    onClick = { scope.launch { drawer.close(); openSettings() } })
             }
         }
     }) {
         Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize()) {
-                Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+                Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { if (selected.isNotEmpty()) selected = emptySet() else scope.launch { drawer.open() } }, modifier = Modifier.size(40.dp)) { Icon(if (selected.isEmpty()) Icons.Outlined.Menu else Icons.Outlined.Close, "Navigation") }
-                    Text(if (selected.isEmpty()) "Downloads" else "${selected.size} selected", Modifier.weight(1f), style = if (selected.isEmpty()) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, maxLines = 1)
+                    Text(if (selected.isEmpty()) "Downloads" else "${selected.size} selected", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1)
                     if (selected.isNotEmpty()) {
                         IconButton(onClick = { selected.forEach { viewModel.pause(it) }; selected = emptySet() }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.Pause, "Pause selected") }
                         IconButton(onClick = { selected.forEach { viewModel.resume(it) }; selected = emptySet() }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.PlayArrow, "Resume selected") }
                         IconButton(onClick = { deletion = selected }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.Delete, "Delete selected") }
                     } else {
-                        IconButton(onClick = { searching = !searching; if (!searching) search = "" }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.Search, "Search downloads") }
+                        IconButton(onClick = { tick(); searching = !searching; if (!searching) search = "" }, modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, com.alal.downloader.ui.theme.IconShape)) { Icon(Icons.Outlined.Search, "Search downloads") }
                         Box {
-                            IconButton(onClick = { sortMenu = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.Sort, "Sort") }
+                            IconButton(onClick = { tick(); sortMenu = true }, modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, com.alal.downloader.ui.theme.IconShape)) { Icon(Icons.Outlined.Sort, "Sort") }
                             DropdownMenu(sortMenu, { sortMenu = false }) { listOf("Date added", "Name", "Size", "Status").forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { sort = value; sortMenu = false }) } }
                         }
+                        IconButton(onClick = openBrowser, modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, com.alal.downloader.ui.theme.IconShape)) { Icon(Icons.Outlined.Language, "Browser") }
                         Box {
-                            IconButton(onClick = { more = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Outlined.MoreVert, "More") }
+                            IconButton(onClick = { tick(); more = true }, modifier = Modifier.size(40.dp)) { Icon(Icons.Outlined.MoreVert, "More") }
                             DropdownMenu(more, { more = false }) {
-                                listOf("Pause all", "Resume all", "Clear finished", "Download location", "Export list", "Import list", "About").forEach { label ->
+                                listOf("Pause all", "Resume all", "Clear finished", "Download location", "Export list", "Import list", "Settings", "About").forEach { label ->
                                     DropdownMenuItem(text = { Text(label) }, onClick = {
                                         more = false
                                         when (label) {
@@ -144,6 +148,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                                             "Download location" -> chooseFolder()
                                             "Export list" -> export.launch("alal-downloads.txt")
                                             "Import list" -> importFile.launch(arrayOf("text/plain"))
+                                            "Settings" -> openSettings()
                                             else -> message = "Alal Downloader ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
                                         }
                                     })
@@ -153,8 +158,8 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                     }
                 }
                 if (searching) OutlinedTextField(search, { search = it }, singleLine = true, placeholder = { Text("Filter by filename") }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("All", "Active", "Queued", "Done", "Failed").forEach { label ->
+                LazyRow(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(listOf("All", "Active", "Queued", "Done", "Failed"), key = { it }) { label ->
                         val color by animateColorAsState(if (filter == label) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, tween(150), label = "filter")
                         Surface(onClick = { filter = label; tick() }, shape = PillShape, color = color) {
                             Row(Modifier.padding(horizontal = 15.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -164,7 +169,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                             }
                         }
                     }
-                    if (category != "Everything") AssistChip(onClick = { category = "Everything" }, label = { Text("$category × Clear", maxLines = 1) })
+                    if (category != "Everything") item { AssistChip(onClick = { category = "Everything" }, label = { Text("$category × Clear", maxLines = 1) }) }
                 }
                 if (shown.isEmpty()) Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Box(Modifier.size(112.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape), contentAlignment = Alignment.Center) {

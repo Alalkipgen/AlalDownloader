@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var downloadSettings: DownloadSettings
     private val downloadsViewModel: DownloadsViewModel by viewModels()
     private val browserViewModel: BrowserViewModel by viewModels()
+    private val browserHostViewModel: BrowserHostViewModel by viewModels()
     private var notificationIntent by mutableStateOf<Intent?>(null)
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -50,7 +51,7 @@ class MainActivity : ComponentActivity() {
                     appearance.edit().putBoolean("dynamic", value).apply(); dynamic = value
                 }) {
             AlalTheme(effectiveTheme, dynamic) {
-                AlalApp(downloadsViewModel, browserViewModel, notificationIntent)
+                AlalApp(downloadsViewModel, browserViewModel, browserHostViewModel.session, notificationIntent)
             }
             }
         }

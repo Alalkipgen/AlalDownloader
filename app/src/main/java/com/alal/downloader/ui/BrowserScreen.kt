@@ -17,7 +17,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,7 +83,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
+fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, navigateBack: () -> Unit) {
     val tab = session.active
     var showTabs by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -99,10 +98,9 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
         snapshotFlow { session.tabs.size }.collect { Log.d("Browser", "tabs changed size=$it") }
     }
     LaunchedEffect(session, tab?.id) { if (tab == null) session.ensureActiveTab() }
-    BackHandler(enabled = tab?.back == true) { tab?.webView?.goBack() }
     
     Column(modifier.fillMaxSize()) {
-        com.alal.downloader.ui.components.BrowserChrome(session, { showTabs = true }, { showMedia = true }, { showMore = true })
+        com.alal.downloader.ui.components.BrowserChrome(session, { showTabs = true }, { showMedia = true }, { showMore = true }, navigateBack)
 
         session.refresh?.let {
             Text("Waiting for new link for ${it.fileName}… tap the download button on the page.",
