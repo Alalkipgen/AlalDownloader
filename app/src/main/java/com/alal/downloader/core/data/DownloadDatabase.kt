@@ -90,7 +90,8 @@ abstract class DownloadDao {
 }
 
 /** Room database for restart-safe download metadata and segment offsets. */
-@Database(entities = [DownloadEntity::class, SegmentEntity::class], version = 3, exportSchema = true)
+@Database(entities = [DownloadEntity::class, SegmentEntity::class, HistoryEntry::class], version = 4, exportSchema = true)
 abstract class DownloadDatabase : RoomDatabase() {
     abstract fun downloads(): DownloadDao
+    abstract fun history(): HistoryDao
 }

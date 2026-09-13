@@ -34,16 +34,38 @@ import com.alal.downloader.feature.browser.BrowserSession
 import com.alal.downloader.feature.browser.BrowserPolicy
 import com.alal.downloader.ui.theme.*
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.alal.downloader.feature.browser.historyRepository
+import kotlinx.coroutines.flow.flowOf
 
 @Composable
 fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, more: () -> Unit, navigateBack: () -> Unit) {
     val tab = session.active
+    val context = LocalContext.current
+    val history = remember(context) { context.historyRepository() }
+    val incognito by history.incognito.collectAsStateWithLifecycle()
     var address by remember(tab?.id) { mutableStateOf(TextFieldValue(tab?.url.orEmpty())) }
     var editing by remember { mutableStateOf(false) }
     var acquiredFocus by remember { mutableStateOf(false) }
     var homeEmpty by remember(tab?.id) { mutableStateOf(false) }
     var stopped by remember(tab?.id, tab?.finishedLoads, tab?.url) { mutableStateOf(false) }
     val focus = LocalFocusManager.current
+    val suggestions by remember(history, address.text, editing) {
+        if (editing && address.text.length >= 2) history.suggestions(address.text) else flowOf(emptyList())
+    }.collectAsStateWithLifecycle(emptyList())
+    DisposableEffect(tab?.webView) {
+        val view = tab?.webView
+        var x = view?.scrollX
+        var y = view?.scrollY
+        val listener = android.view.ViewTreeObserver.OnScrollChangedListener {
+            if (view?.scrollX != x || view?.scrollY != y) { focus.clearFocus(); editing = false }
+            x = view?.scrollX; y = view?.scrollY
+        }
+        val observer = view?.viewTreeObserver
+        observer?.addOnScrollChangedListener(listener)
+        onDispose { if (observer?.isAlive == true) observer.removeOnScrollChangedListener(listener) }
+    }
     val requester = remember { FocusRequester() }
     val loading = tab != null && tab.progress < 100 && !stopped && tab.error == null
     val progress by animateFloatAsState((tab?.progress ?: 100) / 100f, tween(250), label = "page progress")
@@ -56,7 +78,7 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChromeButton(Icons.Outlined.ArrowBack, "Back to Downloads", click = navigateBack)
             Row(Modifier.weight(1f).height(46.dp).background(MaterialTheme.colorScheme.surfaceVariant, PillShape).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (!editing && address.text.isNotEmpty()) Icon(Icons.Outlined.Lock, "Connection security", Modifier.size(15.dp), tint = if (tab?.url?.startsWith("https://") == true) Ok else Warn)
+                if (incognito || (!editing && address.text.isNotEmpty())) Icon(if (incognito) Icons.Outlined.VisibilityOff else Icons.Outlined.Lock, if (incognito) "Incognito" else "Connection security", Modifier.size(15.dp), tint = if (incognito) Accent2 else if (tab?.url?.startsWith("https://") == true) Ok else Warn)
                 Spacer(Modifier.width(7.dp))
                 Box(Modifier.weight(1f)) {
                     if (editing) BasicTextField(address, { address = it }, singleLine = true,
@@ -84,6 +106,28 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
         }
         Box(Modifier.fillMaxWidth().height(3.dp).padding(horizontal = 24.dp)) {
             BrowserLoadingProgress(loading, progress)
+        }
+        if (editing && acquiredFocus && address.text.length >= 2) Surface(Modifier.fillMaxWidth().padding(horizontal = 12.dp), shape = IconShape, tonalElevation = 3.dp) {
+            Column {
+                suggestions.forEach { entry ->
+                    Row(Modifier.fillMaxWidth().clickable { address = TextFieldValue(entry.url); navigate() }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        HistoryFavicon(entry.faviconUrl)
+                        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                            Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(entry.host, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        }
+                        Icon(Icons.Outlined.History, "From history", Modifier.size(18.dp))
+                    }
+                }
+                Row(Modifier.fillMaxWidth().clickable {
+                    val query = address.text
+                    address = TextFieldValue("https://www.google.com/search?q=" + java.net.URLEncoder.encode(query, "UTF-8"))
+                    navigate()
+                }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Search, null)
+                    Text("Search Google for ${address.text}", Modifier.padding(start = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             ChromeButton(Icons.Outlined.ArrowBack, "Back", enabled = tab?.back == true) { tab?.webView?.goBack() }

@@ -82,7 +82,7 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     BrowserLifecycle(browser) { clipboardUrl = it }
     BackHandler(enabled = destination != "Downloads") {
         if (destination == "Browser" && browser.active?.webView?.canGoBack() == true) browser.active?.webView?.goBack()
-        else destination = "Downloads"
+        else destination = if (destination == "History") "Browser" else "Downloads"
     }
     LaunchedEffect(destination) {
         browser.visible = destination == "Browser"
@@ -117,7 +117,8 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
             screenState.SaveableStateProvider(route) {
                 val content = Modifier.fillMaxSize()
                 when (route) {
-                    "Browser" -> BrowserScreen(browser, content.navigationBarsPadding(), { tick(); destination = "Downloads" })
+                    "Browser" -> BrowserScreen(browser, content.navigationBarsPadding(), { tick(); destination = "Downloads" }, { tick(); destination = "History" })
+                    "History" -> HistoryScreen(remember(context) { context.historyRepository() }, browser, content.navigationBarsPadding()) { destination = "Browser" }
                     "Downloads" -> DownloadsScreen(viewModel, { browser.reopen(it); destination = "Browser" }, content, { folder.launch(null) },
                         openBrowser = { tick(); destination = "Browser" }, openSettings = { tick(); destination = "Settings" })
                     else -> SettingsScreen(viewModel, browser, { folder.launch(null) }, content.navigationBarsPadding(), { backgroundDialog = true },

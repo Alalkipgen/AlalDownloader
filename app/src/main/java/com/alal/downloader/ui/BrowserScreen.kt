@@ -83,7 +83,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, navigateBack: () -> Unit) {
+fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, navigateBack: () -> Unit, openHistory: () -> Unit = {}) {
     val tab = session.active
     var showTabs by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -92,6 +92,8 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
     var showFind by remember { mutableStateOf(false) }
     var showExternal by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val history = remember(context) { context.historyRepository() }
+    val incognito by history.incognito.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
     SideEffect { Log.d("Browser", "composition tabs=${session.tabs.size} active=${tab?.id}") }
     LaunchedEffect(session) {
@@ -171,7 +173,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
     }
     if (showMore) ModalBottomSheet(onDismissRequest = { showMore = false }) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
-            listOf("New tab", "Add link to queue", "Open magnet/torrent", "Find in page", "Share page", "Browser settings", "Manage open tabs").forEach { label ->
+            listOf("New tab", "Add link to queue", "Open magnet/torrent", "Find in page", "Share page", "History", "Browser settings", "Manage open tabs").forEach { label ->
                 TextButton(onClick = {
                     showMore = false
                     when (label) {
@@ -182,6 +184,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
                         "Share page" -> runCatching { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, tab?.url), "Share page")) }
                             .onFailure { android.widget.Toast.makeText(context, "No sharing app available", android.widget.Toast.LENGTH_SHORT).show() }
                         "Browser settings" -> showSettings = true
+                        "History" -> openHistory()
                         else -> showTabs = true
                     }
                 }, modifier = Modifier.fillMaxWidth()) {
@@ -220,6 +223,8 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
     }
     if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Browser settings") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState())) {
+            SettingSwitch("Incognito", incognito, history::setIncognito)
+            Text("Incognito prevents history recording. Cookies and website storage are unchanged.")
             SettingSwitch("Block obvious popups", session.blockPopups) { value ->
                 session.blockPopups = value; session.settings.blockPopups = value
                 session.tabs.forEach { it.webView.settings.javaScriptCanOpenWindowsAutomatically = !value }

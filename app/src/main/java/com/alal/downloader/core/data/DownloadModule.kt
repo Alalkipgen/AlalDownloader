@@ -33,7 +33,7 @@ object DownloadModule {
                     db.execSQL("ALTER TABLE downloads ADD COLUMN segmentCount INTEGER")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN preserveFileName INTEGER NOT NULL DEFAULT 0")
                 }
-            }).build()
+            }, HistoryMigration).build()
 
     @Provides
     @Singleton

@@ -231,6 +231,7 @@ class BrowserSession(private val context: Context) {
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
+                if (tab.error == null) context.historyRepository().record(url, view.title, view.url?.toHttpUrlOrNull()?.host, view.favicon)
                 update(tab)
                 tab.url = url ?: tab.url
                 tab.finishedLoads++
