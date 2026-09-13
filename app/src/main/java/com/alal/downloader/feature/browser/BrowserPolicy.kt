@@ -37,7 +37,7 @@ object BrowserPolicy {
         ?.substringAfterLast('.', "")?.lowercase().orEmpty()
 
     fun downloadable(url: String, extensions: String): Boolean = extension(url).let { suffix ->
-        suffix.isNotEmpty() && suffix in extensions.lowercase().split(Regex("[\\s,;]+" )).map { it.trimStart('.') }
+        suffix.isNotEmpty() && suffix in extensions.lowercase().split(Regex("""[\s,;]+""")).map { it.trimStart('.') }
     }
 
     fun mediaCandidate(url: String): Boolean = extension(url) in mediaExtensions

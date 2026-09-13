@@ -48,12 +48,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -84,7 +87,12 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
     var showSettings by remember { mutableStateOf(false) }
     var showMedia by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
-    LaunchedEffect(tab?.url) { address = tab?.url.orEmpty() }
+    SideEffect { Log.d("Browser", "composition tabs=${session.tabs.size} active=${tab?.id}") }
+    LaunchedEffect(session) {
+        snapshotFlow { session.tabs.size }.collect { Log.d("Browser", "tabs changed size=$it") }
+    }
+    LaunchedEffect(session, tab?.id) { if (tab == null) session.ensureActiveTab() }
+    LaunchedEffect(tab?.id, tab?.finishedLoads) { address = tab?.url.orEmpty() }
     BackHandler(enabled = tab?.back == true) { tab?.webView?.goBack() }
     
     Column(modifier.fillMaxSize()) {
@@ -97,7 +105,11 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
                 shape = RoundedCornerShape(24.dp),
                 placeholder = { Text("Search or type URL") },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, keyboardType = KeyboardType.Uri),
-                keyboardActions = KeyboardActions(onGo = { focus.clearFocus(); session.navigate(address) }),
+                keyboardActions = KeyboardActions(onGo = {
+                    Log.d("Browser", "Go source=IME")
+                    focus.clearFocus()
+                    session.navigate(address)
+                }),
                 trailingIcon = {
                     Row {
                         if (address.isNotBlank()) {
@@ -111,16 +123,21 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
                     }
                 }
             )
+            TextButton(onClick = {
+                Log.d("Browser", "Go source=button")
+                focus.clearFocus()
+                session.navigate(address)
+            }) { Text("Go") }
         }
         
-        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             IconButton(onClick = { tab?.webView?.goBack() }, enabled = tab?.back == true) {
                 Icon(Icons.Filled.ArrowBack, "Back")
             }
             IconButton(onClick = { tab?.webView?.goForward() }, enabled = tab?.forward == true) {
                 Icon(Icons.Filled.ArrowForward, "Forward")
             }
-            IconButton(onClick = { session.navigate(BrowserPolicy.HOME) }) {
+            IconButton(onClick = { address = ""; focus.clearFocus(); session.navigate(BrowserPolicy.HOME) }) {
                 Icon(Icons.Filled.Home, "Home")
             }
             TextButton(onClick = { showTabs = true }) { Text("Tabs ${session.tabs.size}") }
@@ -150,12 +167,26 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
                     AndroidView(
                         factory = {
                             (tab.webView.parent as? android.view.ViewGroup)?.removeView(tab.webView)
+                            Log.d("Browser", "factory=${System.identityHashCode(tab.webView)} active=${tab.id}")
                             tab.webView
                         },
+                        update = { webViewInTree -> require(webViewInTree === session.active?.webView) },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
+                tab.error?.let { message ->
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.errorContainer) {
+                        Column(Modifier.fillMaxSize().padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center) {
+                            Text(message, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Button(onClick = { session.retry(tab) }) { Text("Retry") }
+                        }
+                    }
+                }
             }
+        } else {
+            Text("Starting browser…", Modifier.padding(16.dp))
         }
     }
     if (showTabs) AlertDialog(onDismissRequest = { showTabs = false }, title = { Text("Tabs") }, text = {

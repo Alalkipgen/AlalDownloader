@@ -2,8 +2,6 @@ name: CI Build
 
 on:
   push:
-    branches:
-      - main
   pull_request:
 
 permissions:
@@ -32,7 +30,6 @@ jobs:
 
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace --continue -Dorg.gradle.logging.level=info
-        continue-on-error: true
 
       - name: Print failing test details
         if: always()
@@ -50,6 +47,7 @@ jobs:
         run: ./gradlew lintDebug --no-daemon --stacktrace
 
       - name: Build Release APK
+        if: always()
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload Debug APK

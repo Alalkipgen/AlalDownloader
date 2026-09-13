@@ -24,6 +24,19 @@ class BrowserPolicyTest {
         assertFalse(BrowserPolicy.downloadable("https://example.com/page", ""))
     }
 
+    @Test fun defaultExtensionsCaptureZipAndSupportWhitespaceSeparators() {
+        assertTrue(BrowserPolicy.downloadable("https://example.com/file.zip", BrowserPolicy.EXTENSIONS))
+        assertTrue(BrowserPolicy.downloadable("https://example.com/file.zip", "pdf\tzip\nmp4"))
+        assertTrue(BrowserPolicy.downloadable("https://example.com/file.zip", ".pdf,.zip;.mp4"))
+        assertFalse(BrowserPolicy.downloadable("https://example.com/file.zip", "gzip"))
+    }
+
+    @Test fun acceptanceAddressesResolveWithoutSendingMagnetToWebView() {
+        assertEquals("https://www.facebook.com/", BrowserPolicy.address("www.facebook.com"))
+        assertEquals("https://www.google.com/search?q=notion+android", BrowserPolicy.address("notion android"))
+        assertEquals("magnet:?xt=urn:btih:abc", BrowserPolicy.address("magnet:?xt=urn:btih:abc"))
+    }
+
     @Test fun filenamesCannotEscapeDestination() {
         assertEquals("safe.zip", BrowserPolicy.sanitize("../../safe.zip"))
         assertEquals("safe.zip", BrowserPolicy.sanitize("C:\\safe.zip"))

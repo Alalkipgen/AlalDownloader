@@ -6,6 +6,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Message
+import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.WebResourceError
 import android.webkit.CookieManager
 import android.webkit.URLUtil
 import android.webkit.WebChromeClient
@@ -42,6 +45,8 @@ class BrowserTab(val id: String, val webView: WebView) {
     var progress by mutableStateOf(0)
     var back by mutableStateOf(false)
     var forward by mutableStateOf(false)
+    var error by mutableStateOf<String?>(null)
+    var finishedLoads by mutableStateOf(0)
     val media = mutableStateListOf<BrowserCapture>()
 }
 
@@ -66,10 +71,22 @@ class BrowserSession(private val context: Context) {
     var visible = true
     val active: BrowserTab? get() = tabs.find { it.id == selected }
 
+    init {
+        Log.d("Browser", "session init tabs=${tabs.size}")
+        ensureActiveTab()
+    }
+
+    fun ensureActiveTab(): BrowserTab {
+        check(!closed) { "Browser session has been disposed" }
+        return active ?: tabs.firstOrNull()?.also { selected = it.id } ?: newTab()
+    }
+
     fun newTab(url: String = BrowserPolicy.HOME): BrowserTab {
+        check(!closed) { "Browser session has been disposed" }
         val tab = createTab()
         tabs.add(tab)
         selected = tab.id
+        Log.d("Browser", "newTab tabs=${tabs.size} active=${tab.id}")
         navigate(url)
         return tab
     }
@@ -87,16 +104,28 @@ class BrowserSession(private val context: Context) {
     }
 
     fun navigate(input: String) {
-        val tab = active ?: return
+        val tab = ensureActiveTab()
         val url = BrowserPolicy.address(input)
-        if (!route(tab, url)) tab.webView.loadUrl(url)
+        Log.d("Browser", "navigate active=${tab.id}")
+        if (!route(tab, url)) load(tab, url)
+    }
+
+    private fun load(tab: BrowserTab, url: String) {
+        tab.error = null
+        Log.d("Browser", "loadUrl on ${System.identityHashCode(tab.webView)} host=${url.toHttpUrlOrNull()?.host}")
+        tab.webView.loadUrl(url)
+    }
+
+    fun retry(tab: BrowserTab) {
+        require(tab in tabs)
+        load(tab, tab.url)
     }
 
     fun reopen(state: DownloadState) {
         refresh = state
         val tab = newTab()
         refreshTabId = tab.id
-        tab.webView.loadUrl(requireNotNull(state.request.referrerPageUrl))
+        load(tab, requireNotNull(state.request.referrerPageUrl))
     }
 
     fun copyLink(url: String) {
@@ -125,6 +154,7 @@ class BrowserSession(private val context: Context) {
     fun resume() { if (visible) active?.webView?.onResume() }
 
     fun close() {
+        Log.d("Browser", "session close tabs=${tabs.size}")
         closed = true
         CookieManager.getInstance().flush()
         writer.close()
@@ -154,6 +184,7 @@ class BrowserSession(private val context: Context) {
             )
         }
         val tab = BrowserTab(UUID.randomUUID().toString(), view)
+        Log.d("Browser", "createTab webView=${System.identityHashCode(view)}")
         view.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -190,6 +221,8 @@ class BrowserSession(private val context: Context) {
                 else request.url.scheme !in setOf("http", "https", "about")
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                Log.d("Browser", "onPageStarted webView=${System.identityHashCode(view)} host=${url?.toHttpUrlOrNull()?.host}")
+                tab.error = null
                 writer.navigation(view)
                 tab.media.clear()
                 if (capture?.tabId == tab.id && capture?.url?.startsWith("blob:") == true) capture = null
@@ -197,7 +230,26 @@ class BrowserSession(private val context: Context) {
                 tab.url = url ?: tab.url
             }
 
-            override fun onPageFinished(view: WebView, url: String?) { update(tab) }
+            override fun onPageFinished(view: WebView, url: String?) {
+                update(tab)
+                tab.url = url ?: tab.url
+                tab.finishedLoads++
+                Log.d("Browser", "onPageFinished webView=${System.identityHashCode(view)}")
+            }
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                if (request.isForMainFrame) {
+                    tab.error = "${error.errorCode}: ${error.description}"
+                    Log.e("Browser", "onReceivedError webView=${System.identityHashCode(view)} code=${error.errorCode}")
+                }
+            }
+
+            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                if (request.isForMainFrame) {
+                    tab.error = "HTTP ${response.statusCode}: ${response.reasonPhrase}"
+                    Log.e("Browser", "onReceivedHttpError status=${response.statusCode}")
+                }
+            }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val url = request.url.toString()
@@ -211,7 +263,15 @@ class BrowserSession(private val context: Context) {
             }
         }
         view.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView, newProgress: Int) { tab.progress = newProgress; update(tab) }
+            override fun onProgressChanged(view: WebView, newProgress: Int) {
+                Log.d("Browser", "onProgressChanged webView=${System.identityHashCode(view)} progress=$newProgress")
+                tab.progress = newProgress
+                update(tab)
+            }
+            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                Log.d("BrowserConsole", "level=${message.messageLevel()} line=${message.lineNumber()}")
+                return true
+            }
             override fun onReceivedTitle(view: WebView, title: String?) { tab.title = title ?: "Tab" }
 
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
@@ -223,7 +283,7 @@ class BrowserSession(private val context: Context) {
                 fun forward(url: String): Boolean {
                     if (routed || url == "about:blank") return false
                     routed = true
-                    if (!route(tab, url)) view.loadUrl(url)
+                    if (!route(tab, url)) load(tab, url)
                     popup.post { popups.remove(popup); popup.stopLoading(); popup.destroy() }
                     return true
                 }

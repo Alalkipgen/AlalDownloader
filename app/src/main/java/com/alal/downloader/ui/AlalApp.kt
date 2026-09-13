@@ -21,7 +21,7 @@ import com.alal.downloader.feature.downloads.SettingsScreen
 @Composable
 internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserViewModel, notificationIntent: android.content.Intent? = null) {
     val context = LocalContext.current
-    val browser = remember(context) { BrowserSession(context).apply { newTab() } }
+    val browser = remember(context) { BrowserSession(context) }
     var destination by rememberSaveable { mutableStateOf("Downloads") }
     var clipboardUrl by remember { mutableStateOf<String?>(null) }
     val error by viewModel.error.collectAsStateWithLifecycle()
@@ -76,7 +76,7 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     BrowserLifecycle(browser) { clipboardUrl = it }
     LaunchedEffect(destination) {
         browser.visible = destination == "Browser"
-        if (destination != "Browser") browser.close()
+        android.util.Log.d("Browser", "destination=$destination tabs=${browser.tabs.size}")
         if (browser.visible) browser.resume() else browser.pause()
     }
     LaunchedEffect(error) { error?.let { snackbar.showSnackbar(it); viewModel.clearError() } }
