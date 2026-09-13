@@ -13,7 +13,7 @@ import org.junit.Test
 class BrowserPolicyTest {
     @Test fun addressDistinguishesDomainsSearchAndMagnet() {
         assertEquals("https://example.com/file.zip", BrowserPolicy.address(" example.com/file.zip "))
-        assertEquals("https://duckduckgo.com/?q=two+words", BrowserPolicy.address("two words"))
+        assertEquals("https://www.google.com/search?q=two+words", BrowserPolicy.address("two words"))
         assertEquals("magnet:?xt=abc", BrowserPolicy.address("magnet:?xt=abc"))
         assertTrue(BrowserPolicy.address("javascript:alert(1)").startsWith(BrowserPolicy.HOME))
     }
