@@ -22,8 +22,9 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun HistoryFavicon(url: String?) {
-    val image by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, url) {
-        value = withContext(Dispatchers.Default) {
+    var image by remember(url) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    LaunchedEffect(url) {
+        image = withContext(Dispatchers.Default) {
             runCatching {
                 url?.takeIf { it.startsWith("data:image/png;base64,") }?.substringAfter(',')?.let {
                     val bytes = Base64.decode(it, Base64.NO_WRAP)
