@@ -17,6 +17,11 @@ object BrowserPolicy {
             return value.toHttpUrlOrNull()?.toString() ?: search(value)
         }
         if (value.startsWith("magnet:", true)) return value
+        if (value.startsWith("javascript:", true) || value.startsWith("data:", true) || 
+            value.startsWith("intent:", true) || value.startsWith("mailto:", true) || 
+            value.startsWith("tel:", true)) {
+            return HOME
+        }
         if (value.none { it.isWhitespace() } && !value.contains("://")) {
             val candidate = "https://$value".toHttpUrlOrNull()
             if (candidate != null && (candidate.host.contains('.') || candidate.host == "localhost")) return candidate.toString()
