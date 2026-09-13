@@ -7,6 +7,13 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -21,6 +28,7 @@ import com.alal.downloader.feature.downloads.SettingsScreen
 @Composable
 internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserViewModel, notificationIntent: android.content.Intent? = null) {
     val context = LocalContext.current
+    val tick = rememberUiTick()
     val browser = remember(context) { BrowserSession(context) }
     var destination by rememberSaveable { mutableStateOf("Downloads") }
     var clipboardUrl by remember { mutableStateOf<String?>(null) }
@@ -90,17 +98,25 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
             permission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
     Scaffold(modifier = Modifier.fillMaxSize().safeDrawingPadding(), snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
-        NavigationBar {
+        Column {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
+        NavigationBar(modifier = Modifier.height(84.dp), windowInsets = WindowInsets(0, 0, 0, 0),
+            containerColor = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF101017) else MaterialTheme.colorScheme.surface) {
             listOf("Browser", "Downloads", "Settings").forEach { item ->
-                NavigationBarItem(selected = destination == item, onClick = { destination = item },
-                    icon = { Text(when (item) { "Browser" -> "◎"; "Downloads" -> "↓"; else -> "⚙" }) }, label = { Text(item) })
+                NavigationBarItem(selected = destination == item, onClick = { if (destination != item) { tick(); destination = item } },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer, indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        unselectedIconColor = Color(0xFF5F5F78), unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                    icon = { Icon(when (item) { "Browser" -> Icons.Outlined.Language; "Downloads" -> Icons.Outlined.Download; else -> Icons.Outlined.Settings }, item) },
+                    label = { Text(item, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) })
             }
+        }
         }
     }) { padding ->
         val content = Modifier.padding(padding).fillMaxSize()
         when (destination) {
             "Browser" -> BrowserScreen(browser, content)
-            "Downloads" -> DownloadsScreen(viewModel, { browser.reopen(it); destination = "Browser" }, content)
+            "Downloads" -> DownloadsScreen(viewModel, { browser.reopen(it); destination = "Browser" }, content, { folder.launch(null) })
             else -> SettingsScreen(viewModel, browser, { folder.launch(null) }, content, { backgroundDialog = true })
         }
     }

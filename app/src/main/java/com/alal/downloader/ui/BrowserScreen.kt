@@ -79,78 +79,28 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
     val tab = session.active
-    var address by remember(tab?.id) { mutableStateOf(tab?.url.orEmpty()) }
     var showTabs by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showMedia by remember { mutableStateOf(false) }
+    var showMore by remember { mutableStateOf(false) }
+    var showFind by remember { mutableStateOf(false) }
+    var showExternal by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val focus = LocalFocusManager.current
     SideEffect { Log.d("Browser", "composition tabs=${session.tabs.size} active=${tab?.id}") }
     LaunchedEffect(session) {
         snapshotFlow { session.tabs.size }.collect { Log.d("Browser", "tabs changed size=$it") }
     }
     LaunchedEffect(session, tab?.id) { if (tab == null) session.ensureActiveTab() }
-    LaunchedEffect(tab?.id, tab?.finishedLoads) { address = tab?.url.orEmpty() }
     BackHandler(enabled = tab?.back == true) { tab?.webView?.goBack() }
     
     Column(modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextField(
-                value = address,
-                onValueChange = { address = it },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                shape = RoundedCornerShape(24.dp),
-                placeholder = { Text("Search or type URL") },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, keyboardType = KeyboardType.Uri),
-                keyboardActions = KeyboardActions(onGo = {
-                    Log.d("Browser", "Go source=IME")
-                    focus.clearFocus()
-                    session.navigate(address)
-                }),
-                trailingIcon = {
-                    Row {
-                        if (address.isNotBlank()) {
-                            IconButton(onClick = { address = "" }) {
-                                Icon(Icons.Filled.Close, "Clear")
-                            }
-                        }
-                        IconButton(onClick = { tab?.webView?.reload() }) {
-                            Icon(Icons.Filled.Refresh, "Reload")
-                        }
-                    }
-                }
-            )
-            TextButton(onClick = {
-                Log.d("Browser", "Go source=button")
-                focus.clearFocus()
-                session.navigate(address)
-            }) { Text("Go") }
-        }
-        
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            IconButton(onClick = { tab?.webView?.goBack() }, enabled = tab?.back == true) {
-                Icon(Icons.Filled.ArrowBack, "Back")
-            }
-            IconButton(onClick = { tab?.webView?.goForward() }, enabled = tab?.forward == true) {
-                Icon(Icons.Filled.ArrowForward, "Forward")
-            }
-            IconButton(onClick = { address = ""; focus.clearFocus(); session.navigate(BrowserPolicy.HOME) }) {
-                Icon(Icons.Filled.Home, "Home")
-            }
-            TextButton(onClick = { showTabs = true }) { Text("Tabs ${session.tabs.size}") }
-            TextButton(onClick = { showMedia = true }) { Text("Media ${tab?.media?.size ?: 0}") }
-            IconButton(onClick = { showSettings = true }) {
-                Icon(Icons.Filled.MoreVert, "Menu")
-            }
-        }
-        
-        if (tab != null && tab.progress < 100) {
-            LinearProgressIndicator(progress = { tab.progress / 100f }, modifier = Modifier.fillMaxWidth())
-        }
-        
+        com.alal.downloader.ui.components.BrowserChrome(session, { showTabs = true }, { showMedia = true }, { showMore = true })
+
         session.refresh?.let {
             Text("Waiting for new link for ${it.fileName}… tap the download button on the page.",
                 Modifier.padding(8.dp), color = MaterialTheme.colorScheme.primary)
@@ -189,21 +139,83 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
             Text("Starting browser…", Modifier.padding(16.dp))
         }
     }
-    if (showTabs) AlertDialog(onDismissRequest = { showTabs = false }, title = { Text("Tabs") }, text = {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            session.tabs.toList().forEach { item ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = {
-                        session.active?.webView?.onPause()
-                        session.selected = item.id
-                        session.resume()
-                        showTabs = false
-                    }, modifier = Modifier.weight(1f)) { Text(item.title, maxLines = 2) }
-                    TextButton(onClick = { session.closeTab(item.id) }) { Text("Close") }
+    if (showTabs) ModalBottomSheet(onDismissRequest = { showTabs = false }) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Text("Open tabs", style = MaterialTheme.typography.titleLarge)
+            session.tabs.toList().chunked(2).forEach { pair ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pair.forEach { item ->
+                        androidx.compose.material3.Card(Modifier.weight(1f).padding(vertical = 5.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { session.closeTab(item.id) }) { Icon(Icons.Filled.Close, "Close tab") }
+                                Icon(Icons.Filled.Home, null)
+                            }
+                            TextButton(onClick = {
+                                session.active?.webView?.onPause()
+                                session.selected = item.id
+                                session.resume()
+                                showTabs = false
+                            }) { Text(item.title, maxLines = 2) }
+                            Text(item.url.toHttpUrlOrNull()?.host.orEmpty(), Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                 }
             }
+            Row {
+                TextButton(onClick = { session.newTab(); showTabs = false }) { Text("+ New tab") }
+                TextButton(onClick = { session.tabs.toList().forEach { session.closeTab(it.id) }; showTabs = false }) { Text("Close all") }
+            }
         }
-    }, confirmButton = { TextButton(onClick = { session.newTab(); showTabs = false }) { Text("New tab") } })
+    }
+    if (showMore) ModalBottomSheet(onDismissRequest = { showMore = false }) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            listOf("New tab", "Add link to queue", "Open magnet/torrent", "Find in page", "Share page", "Browser settings", "Manage open tabs").forEach { label ->
+                TextButton(onClick = {
+                    showMore = false
+                    when (label) {
+                        "New tab" -> session.newTab()
+                        "Add link to queue" -> tab?.let { session.captureLink(it.id, it.url) }
+                        "Open magnet/torrent" -> showExternal = true
+                        "Find in page" -> showFind = true
+                        "Share page" -> runCatching { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, tab?.url), "Share page")) }
+                            .onFailure { android.widget.Toast.makeText(context, "No sharing app available", android.widget.Toast.LENGTH_SHORT).show() }
+                        "Browser settings" -> showSettings = true
+                        else -> showTabs = true
+                    }
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.ArrowForward, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(label, Modifier.weight(1f).padding(12.dp))
+                }
+            }
+            SettingSwitch("Desktop mode", session.desktop, session::setDesktopMode)
+        }
+    }
+    if (showFind) {
+        var query by remember { mutableStateOf("") }
+        AlertDialog(onDismissRequest = { showFind = false; tab?.webView?.clearMatches() }, title = { Text("Find in page") }, text = {
+            Column {
+                OutlinedTextField(query, { query = it; tab?.webView?.findAllAsync(it) }, singleLine = true, label = { Text("Find text") })
+                Row {
+                    TextButton(onClick = { tab?.webView?.findNext(false) }) { Text("Previous") }
+                    TextButton(onClick = { tab?.webView?.findNext(true) }) { Text("Next") }
+                }
+            }
+        }, confirmButton = { TextButton(onClick = { showFind = false; tab?.webView?.clearMatches() }) { Text("Done") } })
+    }
+    if (showExternal) {
+        var link by remember { mutableStateOf("") }
+        var failure by remember { mutableStateOf<String?>(null) }
+        AlertDialog(onDismissRequest = { showExternal = false }, title = { Text("Open magnet/torrent") }, text = {
+            Column {
+                Text("Alal transfers HTTP(S) files. Magnet links require an installed torrent app.")
+                OutlinedTextField(link, { link = it }, label = { Text("Magnet or torrent URL") })
+                failure?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        }, confirmButton = { TextButton(enabled = link.startsWith("magnet:?") || link.toHttpUrlOrNull() != null, onClick = {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link))) }
+                .onSuccess { showExternal = false }.onFailure { failure = "No compatible app installed" }
+        }) { Text("Open externally") } }, dismissButton = { TextButton(onClick = { showExternal = false }) { Text("Cancel") } })
+    }
     if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Browser settings") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState())) {
             SettingSwitch("Block obvious popups", session.blockPopups) { value ->
@@ -217,15 +229,21 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
             Text("Cookies persist. Captchas and timers are completed manually. Media candidates are not MIME-confirmed; playlists download as manifests, not assembled videos.")
         }
     }, confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Done") } })
-    if (showMedia) AlertDialog(onDismissRequest = { showMedia = false }, title = { Text("Media candidates") }, text = {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
+    if (showMedia) ModalBottomSheet(onDismissRequest = { showMedia = false }) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Text("Media candidates", style = MaterialTheme.typography.titleLarge)
             if (tab?.media.isNullOrEmpty()) Text("No candidates. Enable media candidates in browser settings.")
             tab?.media?.toList()?.forEach { media ->
-                Text(media.fileName)
-                TextButton(onClick = { if (session.capture == null) session.capture = media; showMedia = false }) { Text("Download") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(media.fileName)
+                        Text("${media.mimeType ?: media.fileName.substringAfterLast('.', "Unknown type")} · ${if (media.size >= 0) "${media.size} bytes" else "Size unknown"}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    TextButton(onClick = { if (session.capture == null) session.capture = media; showMedia = false }) { Text("Download") }
+                }
             }
         }
-    }, confirmButton = { TextButton(onClick = { showMedia = false }) { Text("Close") } })
+    }
     session.linkMenu?.let { (id, url) ->
         AlertDialog(onDismissRequest = { session.linkMenu = null }, title = { Text("Link") }, text = { Text(url, maxLines = 5) },
             confirmButton = { TextButton(onClick = { session.captureLink(id, url); session.linkMenu = null }) { Text("Download link") } },

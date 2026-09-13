@@ -13,10 +13,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alal.downloader.feature.downloads.DownloadsViewModel
 import com.alal.downloader.feature.browser.BrowserViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import com.alal.downloader.core.data.DownloadSettings
+import com.alal.downloader.ui.theme.AlalTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 
 /** Hosts the Alal Compose interface. */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var downloadSettings: DownloadSettings
     private val downloadsViewModel: DownloadsViewModel by viewModels()
     private val browserViewModel: BrowserViewModel by viewModels()
     private var notificationIntent by mutableStateOf<Intent?>(null)
@@ -35,8 +41,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val theme by downloadsViewModel.theme.collectAsStateWithLifecycle()
-            AlalTheme(theme) {
+            val haptics by downloadSettings.haptics.collectAsStateWithLifecycle()
+            val appearance = remember { getSharedPreferences("ui_appearance", MODE_PRIVATE) }
+            var dynamic by remember { mutableStateOf(appearance.getBoolean("dynamic", false)) }
+            val effectiveTheme = if (getSharedPreferences("download_settings", MODE_PRIVATE).contains("theme")) theme else "system"
+            CompositionLocalProvider(LocalDownloadSettings provides downloadSettings, LocalHapticsEnabled provides haptics,
+                LocalDynamicColor provides dynamic, LocalSetDynamicColor provides { value ->
+                    appearance.edit().putBoolean("dynamic", value).apply(); dynamic = value
+                }) {
+            AlalTheme(effectiveTheme, dynamic) {
                 AlalApp(downloadsViewModel, browserViewModel, notificationIntent)
+            }
             }
         }
     }

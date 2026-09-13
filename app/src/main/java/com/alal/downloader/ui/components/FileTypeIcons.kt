@@ -14,6 +14,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import com.alal.downloader.ui.theme.*
+
+fun fileCategory(fileName: String): String = when (fileName.substringAfterLast('.', "").lowercase()) {
+    "torrent" -> "Torrents"
+    "zip", "rar", "7z", "tar", "gz", "bz2", "xz" -> "Compressed"
+    "pdf", "doc", "docx", "txt", "rtf", "xls", "xlsx", "csv", "ppt", "pptx" -> "Documents"
+    "mp3", "m4a", "flac", "wav", "ogg", "aac" -> "Music"
+    "mp4", "mkv", "avi", "mov", "webm", "m4v", "flv" -> "Videos"
+    "srt", "vtt", "ass", "ssa", "sub" -> "Subtitles"
+    "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg" -> "Photos"
+    "apk", "apks", "xapk", "exe", "msi", "dmg", "pkg" -> "Programs"
+    else -> "Others"
+}
+
+@Composable
+fun FileTypeTile(fileName: String) {
+    val colors = when (fileCategory(fileName)) {
+        "Compressed" -> Color(0xFF3A2A12) to Warn
+        "Videos" -> Color(0xFF2A1630) to Color(0xFFE39BFF)
+        "Programs" -> Color(0xFF0F2E23) to Ok
+        "Documents" -> Color(0xFF33161F) to Err
+        "Music" -> Color(0xFF12253A) to Color(0xFF7CC4FF)
+        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Box(Modifier.size(44.dp).background(colors.first, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+        Text(fileName.substringAfterLast('.', "FILE").uppercase().take(3), color = colors.second, style = MaterialTheme.typography.labelSmall)
+    }
+}
 
 @Composable
 fun FileTypeIcon(fileName: String, modifier: Modifier = Modifier) {
