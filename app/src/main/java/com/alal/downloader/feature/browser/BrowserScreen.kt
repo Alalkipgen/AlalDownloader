@@ -2,23 +2,47 @@ package com.alal.downloader.feature.browser
 
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
 import android.os.Build
+import android.util.Log
+import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.webkit.CookieManager
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -26,13 +50,16 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,26 +86,54 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
     val focus = LocalFocusManager.current
     LaunchedEffect(tab?.url) { address = tab?.url.orEmpty() }
     BackHandler(enabled = tab?.back == true) { tab?.webView?.goBack() }
+    
     Column(modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-            OutlinedTextField(address, { address = it }, Modifier.weight(1f), singleLine = true,
-                label = { Text("Search or type URL") },
+        Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextField(
+                value = address,
+                onValueChange = { address = it },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                shape = RoundedCornerShape(24.dp),
+                placeholder = { Text("Search or type URL") },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, keyboardType = KeyboardType.Uri),
-                keyboardActions = KeyboardActions(onGo = { focus.clearFocus(); session.navigate(address) }))
-            TextButton(onClick = { focus.clearFocus(); session.navigate(address) }) { Text("Go") }
+                keyboardActions = KeyboardActions(onGo = { focus.clearFocus(); session.navigate(address) }),
+                trailingIcon = {
+                    Row {
+                        if (address.isNotBlank()) {
+                            IconButton(onClick = { address = "" }) {
+                                Icon(Icons.Filled.Close, "Clear")
+                            }
+                        }
+                        IconButton(onClick = { tab?.webView?.reload() }) {
+                            Icon(Icons.Filled.Refresh, "Reload")
+                        }
+                    }
+                }
+            )
         }
+        
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            IconButton(onClick = { tab?.webView?.goBack() }, enabled = tab?.back == true) {
+                Icon(Icons.Filled.ArrowBack, "Back")
+            }
+            IconButton(onClick = { tab?.webView?.goForward() }, enabled = tab?.forward == true) {
+                Icon(Icons.Filled.ArrowForward, "Forward")
+            }
+            IconButton(onClick = { session.navigate(BrowserPolicy.HOME) }) {
+                Icon(Icons.Filled.Home, "Home")
+            }
+            TextButton(onClick = { showTabs = true }) { Text("Tabs ${session.tabs.size}") }
+            TextButton(onClick = { showMedia = true }) { Text("Media ${tab?.media?.size ?: 0}") }
+            IconButton(onClick = { showSettings = true }) {
+                Icon(Icons.Filled.MoreVert, "Menu")
+            }
+        }
+        
         if (tab != null && tab.progress < 100) {
             LinearProgressIndicator(progress = { tab.progress / 100f }, modifier = Modifier.fillMaxWidth())
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            TextButton(onClick = { tab?.webView?.goBack() }, enabled = tab?.back == true) { Text("Back") }
-            TextButton(onClick = { tab?.webView?.goForward() }, enabled = tab?.forward == true) { Text("Forward") }
-            TextButton(onClick = { tab?.webView?.reload() }) { Text("Reload") }
-            TextButton(onClick = { session.navigate(BrowserPolicy.HOME) }) { Text("Home") }
-            TextButton(onClick = { showTabs = true }) { Text("Tabs ${session.tabs.size}") }
-            TextButton(onClick = { showMedia = true }) { Text("Media ${tab?.media?.size ?: 0}") }
-            TextButton(onClick = { showSettings = true }) { Text("Settings") }
-        }
+        
         session.refresh?.let {
             Text("Waiting for new link for ${it.fileName}… tap the download button on the page.",
                 Modifier.padding(8.dp), color = MaterialTheme.colorScheme.primary)
@@ -88,13 +143,18 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier) {
             Text(it, Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { session.writer.cancel(); session.directProgress = null }) { Text("Cancel / dismiss save") }
         }
+        
         if (tab != null) {
-            if (tab.progress < 100) LinearProgressIndicator(progress = { tab.progress / 100f }, modifier = Modifier.fillMaxWidth())
-            key(tab.id) {
-                AndroidView(factory = {
-                    (tab.webView.parent as? android.view.ViewGroup)?.removeView(tab.webView)
-                    tab.webView
-                }, modifier = Modifier.weight(1f).fillMaxWidth())
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                key(tab.id) {
+                    AndroidView(
+                        factory = {
+                            (tab.webView.parent as? android.view.ViewGroup)?.removeView(tab.webView)
+                            tab.webView
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }
