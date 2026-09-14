@@ -95,6 +95,14 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
     val history = remember(context) { context.historyRepository() }
     val incognito by history.incognito.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
+    DisposableEffect(tab?.webView) {
+        val webView = tab?.webView
+        webView?.setOnTouchListener { _, event ->
+            if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) focus.clearFocus()
+            false
+        }
+        onDispose { webView?.setOnTouchListener(null) }
+    }
     SideEffect { Log.d("Browser", "composition tabs=${session.tabs.size} active=${tab?.id}") }
     LaunchedEffect(session) {
         snapshotFlow { session.tabs.size }.collect { Log.d("Browser", "tabs changed size=$it") }
