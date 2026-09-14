@@ -21,10 +21,10 @@ abstract class HistoryDao {
     @Query("SELECT * FROM history ORDER BY visitedAt DESC, id DESC LIMIT :limit")
     abstract fun recent(limit: Int): Flow<List<HistoryEntry>>
 
-    @Query("SELECT * FROM history WHERE title LIKE '%' || :query || '%' ESCAPE '\' OR url LIKE '%' || :query || '%' ESCAPE '\' OR host LIKE '%' || :query || '%' ESCAPE '\' ORDER BY visitedAt DESC, id DESC")
+    @Query("SELECT * FROM history WHERE title LIKE '%' || :query || '%' ESCAPE '!' OR url LIKE '%' || :query || '%' ESCAPE '!' OR host LIKE '%' || :query || '%' ESCAPE '!' ORDER BY visitedAt DESC, id DESC")
     abstract fun search(query: String): Flow<List<HistoryEntry>>
 
-    @Query("SELECT * FROM history WHERE title LIKE :prefix || '%' ESCAPE '\' OR host LIKE :prefix || '%' ESCAPE '\' OR url LIKE :prefix || '%' ESCAPE '\' OR url LIKE 'https://' || :prefix || '%' ESCAPE '\' OR url LIKE 'http://' || :prefix || '%' ESCAPE '\' OR host LIKE 'www.' || :prefix || '%' ESCAPE '\' ORDER BY visitCount DESC, visitedAt DESC, id DESC LIMIT :limit")
+    @Query("SELECT * FROM history WHERE title LIKE :prefix || '%' ESCAPE '!' OR host LIKE :prefix || '%' ESCAPE '!' OR url LIKE :prefix || '%' ESCAPE '!' OR url LIKE 'https://' || :prefix || '%' ESCAPE '!' OR url LIKE 'http://' || :prefix || '%' ESCAPE '!' OR host LIKE 'www.' || :prefix || '%' ESCAPE '!' ORDER BY visitCount DESC, visitedAt DESC, id DESC LIMIT :limit")
     abstract fun suggestions(prefix: String, limit: Int = 6): Flow<List<HistoryEntry>>
 
     @Query("DELETE FROM history WHERE id = :id")

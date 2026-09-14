@@ -56,7 +56,7 @@ class HistoryRepository @Inject constructor(database: DownloadDatabase, @Applica
         }
     }
 
-    private fun escaped(value: String) = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    private fun escaped(value: String) = value.replace("!", "!!").replace("%", "!%").replace("_", "!_")
     fun entries(query: String) = if (query.isBlank()) dao.recent(Int.MAX_VALUE) else dao.search(escaped(query))
     fun suggestions(prefix: String) = dao.suggestions(escaped(prefix), 6).map {
         HistoryPolicy.suggestions(it, HistoryEntry::visitCount, HistoryEntry::visitedAt)
