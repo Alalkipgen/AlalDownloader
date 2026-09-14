@@ -32,7 +32,7 @@ class HtmlGuardTest {
             assertEquals("https://example.com/page", request.header("Referer"))
             assertEquals("Browser UA", request.header("User-Agent"))
             methods.add(request.method)
-            if (request.method == "GET") assertEquals("bytes=0-0", request.header("Range"))
+            if (request.method == "GET") assertEquals("bytes=0-511", request.header("Range"))
             Response.Builder().request(request).protocol(Protocol.HTTP_1_1).message("Response")
                 .code(if (request.method == "HEAD") headCode else 200)
                 .header("Content-Type", "text/html; charset=utf-8")
@@ -58,7 +58,7 @@ class HtmlGuardTest {
             assertEquals("Browser UA", request.header("User-Agent"))
             val range = request.header("Range")
             val start = range?.removePrefix("bytes=")?.substringBefore('-')?.toInt() ?: 0
-            val end = range?.substringAfter('-')?.toInt() ?: 5
+            val end = (range?.substringAfter('-')?.toInt() ?: 5).coerceAtMost(5)
             if (range != null) ranges.add(range)
             Response.Builder().request(request).protocol(Protocol.HTTP_1_1).message("OK")
                 .code(if (range == null) 200 else 206)
@@ -75,7 +75,7 @@ class HtmlGuardTest {
             val task = DownloadTask(initial, client, Store(), publish = {})
             task.run()
             assertEquals(DownloadStatus.COMPLETED, task.state.status)
-            assertEquals(setOf("bytes=1-2", "bytes=4-5"), ranges.toSet())
+            assertEquals(setOf("bytes=0-511", "bytes=1-2", "bytes=4-5"), ranges.toSet())
             assertEquals("abcdef", file.readText())
         } finally { client.dispatcher.executorService.shutdownNow(); client.connectionPool.evictAll() }
     }

@@ -45,8 +45,9 @@ object DownloadPresentation {
         lines.forEachIndexed { index, line ->
             val text = line.trim()
             if (text.isNotEmpty()) {
-                val parsed = text.toHttpUrlOrNull()
-                if (parsed == null || text.any { it.isWhitespace() }) invalid.add(index + 1) else urls.add(parsed.toString())
+                val parsed = if (text.startsWith("magnet:", true)) text else
+                    runCatching { com.alal.downloader.core.engine.FilenameResolver.normalizeUrl(text) }.getOrNull()
+                if (parsed == null || text.any { it.isWhitespace() }) invalid.add(index + 1) else urls.add(parsed)
             }
             require(urls.size + invalid.size <= 1000) { "Import is limited to 1000 URLs" }
         }

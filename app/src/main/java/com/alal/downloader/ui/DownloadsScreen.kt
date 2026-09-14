@@ -266,7 +266,7 @@ private fun BatchDialog(viewModel: DownloadsViewModel, initialInput: String, dis
                 modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 260.dp), minLines = 6, shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp), label = { Text("One URL per line") }, enabled = !busy)
             Text(validation)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Text("Up to 1000 URLs / 1 MiB UTF-8 text. Current folder and segment defaults apply.")
+            Text("Up to 1000 URLs / 1 MiB UTF-8 text. Current folder and segment defaults apply. Magnets are skipped: Torrent not supported yet.")
             TextButton(onClick = { picker.launch(arrayOf("text/plain")) }, enabled = !busy) { Icon(Icons.Outlined.UploadFile, null); Spacer(Modifier.width(8.dp)); Text("Import .txt file") }
         }
     }, confirmButton = { TextButton(onClick = { viewModel.addBatch(input, dismiss) }, enabled = valid && !busy) { Text(if (busy) "Adding…" else "Add") } },

@@ -52,19 +52,20 @@ class BrowserTransferTest {
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             val request = chain.request()
             val head = request.method == "HEAD"
+            val returnedRange = if (request.header("Range") == "bytes=0-511") "bytes=0-5" else expectedRange
             if (!head) ranges.add(request.header("Range"))
             Response.Builder().request(request).protocol(Protocol.HTTP_1_1).message("OK")
                 .code(if (head) 200 else 206).header("Accept-Ranges", "bytes").header("ETag", tag)
-                .header("Content-Length", if (head) "6" else if (expectedRange == "bytes=3-5") "3" else "6")
+                .header("Content-Length", if (head) "6" else if (returnedRange == "bytes=3-5") "3" else "6")
                 .header("Content-Disposition", "attachment; filename=server.bin")
-                .apply { if (!head) header("Content-Range", "bytes ${expectedRange.removePrefix("bytes=")}/6") }
-                .body((if (head) "" else if (expectedRange == "bytes=3-5") body.substring(3) else body).toResponseBody()).build()
+                .apply { if (!head) header("Content-Range", "bytes ${returnedRange.removePrefix("bytes=")}/6") }
+                .body((if (head) "" else if (returnedRange == "bytes=3-5") body.substring(3) else body).toResponseBody()).build()
         }.build()
         try {
             val task = DownloadTask(initial, client, MemoryStore(), segmentCount = 1, publish = { })
             task.run()
             assertEquals(DownloadStatus.COMPLETED, task.state.status)
-            assertEquals(listOf(expectedRange), ranges)
+            assertEquals(listOf("bytes=0-511", expectedRange), ranges)
             assertEquals("chosen.bin", task.state.fileName)
             assertEquals(body, file.readText())
         } finally { close(client) }

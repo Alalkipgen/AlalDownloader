@@ -16,6 +16,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
+import com.alal.downloader.core.engine.DownloadStatus
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ensureActive
@@ -65,6 +69,10 @@ class DownloadsViewModel @Inject constructor(
     val importedText = mutableImport.asStateFlow()
     private val mutableBatch = MutableStateFlow(false)
     val batchBusy = mutableBatch.asStateFlow()
+    private val mutableBatchIds = MutableStateFlow<Set<String>>(emptySet())
+    val batchIds = mutableBatchIds.asStateFlow()
+    private val batchMessages = Channel<String>(Channel.UNLIMITED)
+    val batchResults = batchMessages.receiveAsFlow()
     private val mutableError = MutableStateFlow<String?>(null)
     val error = mutableError.asStateFlow()
 
@@ -72,38 +80,46 @@ class DownloadsViewModel @Inject constructor(
 
     fun add(url: String) = execute { addOne(url) }
 
-    private suspend fun addOne(url: String) {
-        val parsed = com.alal.downloader.core.engine.FilenameResolver.normalizeUrl(url)
-        val tree = settings.treeUri.value
-        check(tree != null || Build.VERSION.SDK_INT >= 29) { "Choose a download folder first" }
-        intake.add(DownloadRequest(
-            url = parsed,
-            fileName = com.alal.downloader.core.engine.FilenameResolver.resolve(parsed),
-            targetDir = context.filesDir,
-            destinationKind = if (tree == null) "media" else "tree",
-            treeUri = tree,
-            segmentCount = settings.segments.value,
-        ))
-    }
+    private suspend fun addOne(url: String): String =
+        addFile(url, "", "", "", settings.wifiOnly.value, true, "")
 
     fun addBatch(input: String, done: () -> Unit) {
         if (mutableBatch.value) return
         mutableBatch.value = true
         viewModelScope.launch {
             var count = 0
+            var processed = 0
+            val ids = mutableSetOf<String>()
+            var unsupported = 0
             try {
                 withContext(Dispatchers.IO) {
                     val (urls, invalid) = DownloadPresentation.batch(input)
                     require(urls.isNotEmpty() && invalid.isEmpty()) { "Fix invalid lines before importing" }
-                    for (url in urls) { addOne(url); count++ }
+                    for (url in urls) {
+                        if (url.startsWith("magnet:", true)) { unsupported++; processed++; continue }
+                        ids += addOne(url)
+                        mutableBatchIds.value = mutableBatchIds.value + ids
+                        count++
+                        processed++
+                    }
                 }
-                mutableError.value = "Added $count downloads"
                 done()
+                viewModelScope.launch {
+                    val classified = downloads.first { states ->
+                        states.filter { it.id in ids }.all {
+                            it.status in setOf(DownloadStatus.NEEDS_BROWSER, DownloadStatus.COMPLETED,
+                                DownloadStatus.FAILED, DownloadStatus.CANCELLED)
+                        }
+                    }
+                    val pages = classified.count { it.id in ids && it.status == DownloadStatus.NEEDS_BROWSER }
+                    batchMessages.send("$count added · $pages are web pages" +
+                        if (unsupported > 0) " · $unsupported skipped: Torrent not supported yet" else "")
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
                 mutableError.value = "Added $count before import stopped: ${failure.message}. Already-added URLs will not be resubmitted."
-                mutableImport.value = input.removePrefix("\uFEFF").lineSequence().filter { it.isNotBlank() }.drop(count).joinToString("\n")
+                mutableImport.value = input.removePrefix("\uFEFF").lineSequence().filter { it.isNotBlank() }.drop(processed).joinToString("\n")
             }
             finally { mutableBatch.value = false }
         }

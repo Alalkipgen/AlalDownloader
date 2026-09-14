@@ -35,12 +35,18 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     val error by viewModel.error.collectAsStateWithLifecycle()
     val message by browserViewModel.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) {
+        viewModel.batchResults.collect { snackbar.showSnackbar(it) }
+    }
     var backgroundDialog by rememberSaveable { mutableStateOf(false) }
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
+    val batchIds by viewModel.batchIds.collectAsStateWithLifecycle()
+    val batchBusy by viewModel.batchBusy.collectAsStateWithLifecycle()
     val interrupted by viewModel.interruptedWarning.collectAsStateWithLifecycle()
     var handledPages by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
     val page = downloads.firstOrNull {
-        it.status == com.alal.downloader.core.engine.DownloadStatus.NEEDS_BROWSER && it.id !in handledPages
+        !batchBusy && it.id !in batchIds &&
+            it.status == com.alal.downloader.core.engine.DownloadStatus.NEEDS_BROWSER && it.id !in handledPages
     }
     LaunchedEffect(page?.id) {
         page?.let {

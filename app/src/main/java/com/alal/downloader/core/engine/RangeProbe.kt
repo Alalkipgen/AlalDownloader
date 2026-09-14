@@ -26,12 +26,9 @@ class RangeProbe(client: OkHttpClient) {
     private suspend fun probeOnce(request: DownloadRequest): ProbeResult {
         http.execute(request, "HEAD").use { head ->
             if (head.isSuccessful) HtmlGuard.check(head.request.url.toString(), head.header("Content-Type"), head.header("Content-Disposition"))
-            if (head.code == 200 && head.header("Content-Length")?.toLongOrNull()?.let { it >= 0 } == true &&
-                head.header("Accept-Ranges").equals("bytes", true)
-            ) return metadata(head)
             if (!head.isSuccessful && head.code !in listOf(403, 405, 501)) checkHttp(head.code)
         }
-        return http.execute(request, "GET", "bytes=0-0").use { response ->
+        return http.execute(request, "GET", "bytes=0-511").use { response ->
             HtmlGuard.check(response.request.url.toString(), response.header("Content-Type"), response.header("Content-Disposition"))
             HtmlGuard.checkPrefix(response.request.url.toString(), response.peekBody(512).bytes(), response.header("Content-Disposition"))
             if (response.code == 416 && response.header("Content-Range")?.trim() == "bytes */0") {
@@ -43,7 +40,7 @@ class RangeProbe(client: OkHttpClient) {
             if (response.code == 206) {
                 val range = parseContentRange(response.header("Content-Range"))
                     ?: throw DownloadError.Unknown("Invalid probe Content-Range")
-                if (range.start != 0L || range.end != 0L) throw DownloadError.Unknown("Unexpected probe range")
+                if (range.start != 0L || range.end > 511L) throw DownloadError.Unknown("Unexpected probe range")
             }
             result.copy(acceptsRanges = response.code == 206)
         }
