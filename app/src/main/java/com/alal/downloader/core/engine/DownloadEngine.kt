@@ -207,8 +207,8 @@ class DownloadEngine(
                 pending.addFirst(id)
                 break
             }
-            activeCounter++
             val state = mutableStates.value.find { it.id == id && it.status == DownloadStatus.QUEUED } ?: continue
+            activeCounter++
             start(state)
         }
     }

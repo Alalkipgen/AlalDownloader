@@ -16,7 +16,7 @@ class RangeProbe(client: OkHttpClient) {
             try {
                 return@withContext probeOnce(request)
             } catch (failure: IOException) {
-                if (attempt == 4) throw DownloadError.Network(failure.message ?: "Probe failed")
+                if (attempt == 4) throw DownloadError.Network("probe failed").apply { initCause(failure) }
                 delay(1_000L shl attempt)
             }
         }
@@ -25,14 +25,15 @@ class RangeProbe(client: OkHttpClient) {
 
     private suspend fun probeOnce(request: DownloadRequest): ProbeResult {
         http.execute(request, "HEAD").use { head ->
-            if (head.isSuccessful) HtmlGuard.check(request.url, head.header("Content-Type"), head.header("Content-Disposition"))
+            if (head.isSuccessful) HtmlGuard.check(head.request.url.toString(), head.header("Content-Type"), head.header("Content-Disposition"))
             if (head.code == 200 && head.header("Content-Length")?.toLongOrNull()?.let { it >= 0 } == true &&
                 head.header("Accept-Ranges").equals("bytes", true)
             ) return metadata(head)
             if (!head.isSuccessful && head.code !in listOf(403, 405, 501)) checkHttp(head.code)
         }
         return http.execute(request, "GET", "bytes=0-0").use { response ->
-            HtmlGuard.check(request.url, response.header("Content-Type"), response.header("Content-Disposition"))
+            HtmlGuard.check(response.request.url.toString(), response.header("Content-Type"), response.header("Content-Disposition"))
+            HtmlGuard.checkPrefix(response.request.url.toString(), response.peekBody(512).bytes(), response.header("Content-Disposition"))
             if (response.code == 416 && response.header("Content-Range")?.trim() == "bytes */0") {
                 return metadata(response).copy(totalBytes = 0, acceptsRanges = true)
             }
@@ -56,7 +57,7 @@ class RangeProbe(client: OkHttpClient) {
             length,
             response.code == 206 || response.header("Accept-Ranges").equals("bytes", true),
             response.header("ETag"), response.header("Last-Modified"),
-            response.request.url.toString(), parseContentDisposition(response.header("Content-Disposition")),
+            response.request.url.toString(), FilenameResolver.resolve(response.request.url.toString(), response.header("Content-Disposition"), response.header("Content-Type")),
         )
     }
 

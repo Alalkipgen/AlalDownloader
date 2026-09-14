@@ -110,7 +110,16 @@ class DownloadTask(
             storage.complete(state)
             update(state.copy(totalBytes = expected, status = DownloadStatus.COMPLETED, speedBytesPerSecond = 0))
         } catch (page: NeedsBrowser) {
-            update(state.copy(status = DownloadStatus.NEEDS_BROWSER, finalUrl = page.url, error = null, speedBytesPerSecond = 0))
+            try {
+                storage.delete(state)
+                update(state.copy(status = DownloadStatus.NEEDS_BROWSER, finalUrl = page.url, error = null,
+                    speedBytesPerSecond = 0, segments = emptyList(), destinationUri = null))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                update(state.copy(status = DownloadStatus.FAILED,
+                    error = DownloadError.Unknown("Cannot remove rejected page: ${failure.message}"), speedBytesPerSecond = 0))
+            }
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable + Dispatchers.IO) {
                 update(state.copy(status = DownloadStatus.PAUSED, speedBytesPerSecond = 0))

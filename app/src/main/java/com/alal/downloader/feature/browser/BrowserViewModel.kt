@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 @HiltViewModel
 class BrowserViewModel @Inject constructor(
     private val coordinator: DownloadCoordinator,
+    private val intake: com.alal.downloader.core.service.DownloadIntake,
     private val settings: DownloadSettings,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
@@ -47,7 +48,7 @@ class BrowserViewModel @Inject constructor(
             try {
                 withContext(Dispatchers.IO) {
                     if (capture.refreshId != null) coordinator.replaceLink(capture.refreshId, capture.url, capture.headers)
-                    else coordinator.add(request(capture, name, segments), front = true)
+                    else intake.add(request(capture, name, segments), front = true)
                 }
                 mutableMessage.value = if (capture.refreshId == null) "Download submitted at front of queue" else "Link replaced; resuming with validator checks"
                 if (capture.refreshId != null) refreshed()

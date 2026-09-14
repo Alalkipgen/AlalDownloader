@@ -9,7 +9,7 @@ object FileNames {
         val dot = cleaned.lastIndexOf('.').takeIf { it > 0 } ?: cleaned.length
         val extension = bounded(cleaned.substring(dot), 40)
         return (bounded(cleaned.substring(0, dot), 180 - extension.toByteArray(Charsets.UTF_8).size) + extension)
-            .ifBlank { "download.bin" }
+            .ifBlank { "download" }
     }
 
     fun numbered(name: String, number: Int): String {

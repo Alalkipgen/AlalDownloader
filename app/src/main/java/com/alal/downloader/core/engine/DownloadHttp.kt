@@ -14,13 +14,13 @@ internal class DownloadHttp(private val client: OkHttpClient) {
     suspend fun execute(input: DownloadRequest, method: String, range: String? = null, validator: String? = null): Response {
         var url = input.url
         val redirectClient = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
-        repeat(21) { hop ->
+        repeat(6) { hop ->
             val response = executeOnce(redirectClient, input, url, method, range, validator)
             if (response.code !in setOf(301, 302, 303, 307, 308)) return response
             val next = response.header("Location")?.let { response.request.url.resolve(it) }
             response.close()
             if (next == null) throw DownloadError.Unknown("Redirect missing a valid Location")
-            if (hop == 20) throw DownloadError.Unknown("Too many redirects")
+            if (hop == 5) throw DownloadError.Unknown("Too many redirects")
             if (url.startsWith("https:") && next.scheme == "http") throw DownloadError.Unknown("Insecure redirect rejected")
             url = next.toString()
         }

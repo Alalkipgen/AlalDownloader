@@ -93,8 +93,46 @@ class HtmlGuardTest {
             task.run()
             assertEquals(DownloadStatus.NEEDS_BROWSER, task.state.status)
             assertEquals(0L, task.state.downloadedBytes)
-            assertFalse(File(File(temporary.root, "changed"), "file.zip").readText().contains("html"))
+            assertTrue(temporary.root.listFiles()!!.isEmpty())
         } finally { client.dispatcher.executorService.shutdownNow(); client.connectionPool.evictAll() }
+    }
+
+    @Test fun redirectedHtmlIsRejected() = runBlocking {
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            val redirected = chain.request().url.encodedPath == "/page"
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).message("Response")
+                .code(if (redirected) 200 else 301).header("Location", "/page")
+                .header("Content-Type", if (redirected) "text/html" else "application/octet-stream")
+                .body("<html>page</html>".toResponseBody()).build()
+        }.build()
+        try {
+            val task = DownloadTask(DownloadState("redirect", request()), client, Store(), publish = {})
+            task.run()
+            assertEquals(DownloadStatus.NEEDS_BROWSER, task.state.status)
+            assertEquals("https://example.com/page", task.state.finalUrl)
+            assertTrue(temporary.root.listFiles()!!.isEmpty())
+        } finally { client.dispatcher.executorService.shutdownNow(); client.connectionPool.evictAll() }
+    }
+
+    @Test fun octetStreamHtmlIsSniffedAndDeleted() = runBlocking {
+        val body = "  <!DOCTYPE html><html>page</html>"
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).message("OK").code(200)
+                .header("Content-Type", "application/octet-stream").header("Accept-Ranges", "bytes")
+                .header("Content-Length", body.length.toString())
+                .body((if (chain.request().method == "HEAD") "" else body).toResponseBody()).build()
+        }.build()
+        try {
+            val task = DownloadTask(DownloadState("sniff", request()), client, Store(), publish = {})
+            task.run()
+            assertEquals(DownloadStatus.NEEDS_BROWSER, task.state.status)
+            assertEquals(0L, task.state.downloadedBytes)
+            assertTrue(temporary.root.listFiles()!!.isEmpty())
+        } finally { client.dispatcher.executorService.shutdownNow(); client.connectionPool.evictAll() }
+    }
+
+    @Test fun explicitlyAttachedHtmlPassesSniffing() {
+        HtmlGuard.checkPrefix("https://example.com", "<!DOCTYPE html>".toByteArray(), "attachment; filename=page.html")
     }
 
     private fun request() = DownloadRequest("https://example.com/file", "file.zip", targetDir = temporary.root,

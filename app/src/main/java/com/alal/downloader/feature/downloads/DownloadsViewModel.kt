@@ -27,6 +27,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 class DownloadsViewModel @Inject constructor(
     private val engine: DownloadEngine,
     private val coordinator: DownloadCoordinator,
+    private val intake: com.alal.downloader.core.service.DownloadIntake,
     private val settings: DownloadSettings,
     val backgroundAccess: com.alal.downloader.core.service.BackgroundAccess,
     @ApplicationContext private val context: Context,
@@ -57,12 +58,12 @@ class DownloadsViewModel @Inject constructor(
     fun add(url: String) = execute { addOne(url) }
 
     private suspend fun addOne(url: String) {
-        val parsed = url.trim().toHttpUrlOrNull() ?: error("Enter a valid HTTP or HTTPS URL")
+        val parsed = com.alal.downloader.core.engine.FilenameResolver.normalizeUrl(url)
         val tree = settings.treeUri.value
         check(tree != null || Build.VERSION.SDK_INT >= 29) { "Choose a download folder first" }
-        coordinator.add(DownloadRequest(
-            url = parsed.toString(),
-            fileName = parsed.pathSegments.lastOrNull()?.takeIf { it.isNotBlank() } ?: "download.bin",
+        intake.add(DownloadRequest(
+            url = parsed,
+            fileName = com.alal.downloader.core.engine.FilenameResolver.resolve(parsed),
             targetDir = context.filesDir,
             destinationKind = if (tree == null) "media" else "tree",
             treeUri = tree,

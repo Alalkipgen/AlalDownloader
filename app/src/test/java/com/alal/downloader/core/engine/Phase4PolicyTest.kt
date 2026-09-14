@@ -46,7 +46,7 @@ class Phase4PolicyTest {
 
     @Test fun filenamesArePortableBoundedAndNumbered() {
         assertEquals("file (2).zip", FileNames.numbered("../file.zip", 2))
-        assertEquals("download.bin", FileNames.sanitize(".."))
+        assertEquals("download", FileNames.sanitize(".."))
         assertEquals("ab.zip", FileNames.sanitize("a\u202Eb.zip"))
         val name = FileNames.numbered("😀".repeat(100) + ".zip", 123)
         assertTrue(name.toByteArray().size <= 180)
