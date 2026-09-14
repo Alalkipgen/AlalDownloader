@@ -7,8 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.TextRange
-import com.alal.downloader.core.data.HistoryEntry
 import com.alal.downloader.feature.browser.BrowserPolicy
 import org.junit.Assert.*
 import org.junit.Rule
@@ -23,11 +23,11 @@ class BrowserAddressBarTest {
         compose.setContent {
             MaterialTheme {
                 Column {
-                    BrowserAddressBar(pageUrl.value, emptyList(), false, {}, { navigations.add(BrowserPolicy.address(it)) })
+                    BrowserAddressBar(pageUrl.value, false, { navigations.add(BrowserPolicy.address(it)) })
                 }
             }
         }
-        compose.onNodeWithTag("browser-address-display").performClick()
+        compose.onNodeWithTag("browser-address").performTouchInput { click() }
         val field = compose.onNodeWithTag("browser-address")
         field.assertIsFocused().assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(0, pageUrl.value.length)))
         "notion android".forEach { field.performTextInput(it.toString()) }
@@ -43,7 +43,7 @@ class BrowserAddressBarTest {
             pageUrl.value = navigations.single()
         }
         field.assertIsNotFocused().assertTextEquals("https://www.google.com/search?q=notion+android")
-        compose.onNodeWithTag("browser-address-display").performClick()
+        compose.onNodeWithTag("browser-address").performTouchInput { click() }
         field.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(0, pageUrl.value.length)))
         field.performTextInput("new draft")
         compose.runOnIdle { pageUrl.value = "https://www.google.com/?finished=1" }
@@ -52,21 +52,27 @@ class BrowserAddressBarTest {
         field.assertIsNotFocused().assertTextEquals("https://www.google.com/?finished=1")
     }
 
-    @Test fun nonFocusableSuggestionsKeepTypingAndNavigateOnSelection() {
+    @OptIn(ExperimentalTestApi::class)
+    @Test fun clearKeepsFocusAndHardwareEnterSubmitsLink() {
         val navigations = mutableListOf<String>()
-        val entry = HistoryEntry(url = "https://notion.so/", title = "Notion saved page", host = "notion.so", visitedAt = 1)
         compose.setContent {
-            MaterialTheme { BrowserAddressBar("https://www.google.com/", listOf(entry), false, {}, { navigations.add(it) }) }
+            MaterialTheme {
+                BrowserAddressBar("https://www.google.com/", false, { navigations.add(BrowserPolicy.address(it)) })
+            }
         }
-        compose.onNodeWithTag("browser-address-display").performClick()
         val field = compose.onNodeWithTag("browser-address")
-        field.performTextInput("no")
-        compose.onNodeWithText(entry.title).assertIsDisplayed()
-        field.performTextInput("tion android")
-        field.assertIsFocused().assertTextEquals("notion android")
+        field.performTouchInput { click() }
+        field.assertIsEnabled().assertIsFocused()
+        field.performTextClearance()
+        field.assertTextEquals("").assertIsFocused()
+        field.performTextInput("temporary draft")
+        compose.onNodeWithContentDescription("Clear").performTouchInput { click() }
+        field.assertTextEquals("").assertIsFocused()
+        field.performTextInput("https://example.com/")
+        field.assertTextEquals("https://example.com/").assertIsFocused()
         compose.runOnIdle { assertTrue(navigations.isEmpty()) }
-        compose.onNodeWithText(entry.title).performClick()
-        compose.runOnIdle { assertEquals(listOf(entry.url), navigations) }
+        field.performKeyInput { keyDown(Key.Enter); keyUp(Key.Enter) }
+        compose.runOnIdle { assertEquals(listOf("https://example.com/"), navigations) }
         field.assertIsNotFocused()
     }
 }

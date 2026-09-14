@@ -21,8 +21,6 @@ import com.alal.downloader.ui.theme.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alal.downloader.feature.browser.historyRepository
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.alal.downloader.feature.browser.HistorySuggestionsViewModel
 
 @Composable
 fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, more: () -> Unit, navigateBack: () -> Unit) {
@@ -32,9 +30,6 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
     val incognito by history.incognito.collectAsStateWithLifecycle()
     var stopped by remember(tab?.id, tab?.finishedLoads, tab?.url) { mutableStateOf(false) }
     val focus = LocalFocusManager.current
-    val suggestionsModel: HistorySuggestionsViewModel = viewModel()
-    val suggestions by suggestionsModel.suggestions.collectAsStateWithLifecycle()
-    DisposableEffect(suggestionsModel) { onDispose { suggestionsModel.update("") } }
     val loading = tab != null && tab.progress < 100 && !stopped && tab.error == null
     val progress by animateFloatAsState((tab?.progress ?: 100) / 100f, tween(250), label = "page progress")
     Column {
@@ -42,8 +37,7 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
             ChromeButton(Icons.Outlined.ArrowBack, "Back to Downloads", click = navigateBack)
             key(tab?.id) {
                 BrowserAddressBar(
-                    pageUrl = tab?.url.orEmpty(), suggestions = suggestions, incognito = incognito,
-                    onQueryChange = suggestionsModel::update,
+                    pageUrl = tab?.url.orEmpty(), incognito = incognito,
                     onNavigate = { stopped = false; session.navigate(it) },
                     modifier = Modifier.weight(1f),
                     trailingContent = {
