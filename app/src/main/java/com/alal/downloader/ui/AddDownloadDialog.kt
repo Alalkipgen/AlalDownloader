@@ -1,5 +1,6 @@
 package com.alal.downloader.ui
 
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -73,6 +74,21 @@ internal fun AddDownloadDialog(downloads: DownloadsViewModel, initialLink: Strin
         }
         storage = result.first; lowSpace = result.second
     }
+    /** Adds the download (the engine starts it as soon as a slot is free) and closes the dialog. */
+    val submit: () -> Unit = {
+        if (state.link.startsWith("magnet:", true)) { localError = "Torrent not supported yet" }
+        else if (!submitting) {
+            submitting = true
+            scope.launch {
+                try {
+                    downloads.addFile(state.link, state.referrer, state.name, state.extension, wifi, retry, agent)
+                    dismiss()
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (failure: Exception) { localError = failure.message ?: "Cannot add download" }
+                finally { submitting = false }
+            }
+        }
+    }
     Dialog(onDismissRequest = { if (!submitting) dismiss() }) {
         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -92,7 +108,7 @@ internal fun AddDownloadDialog(downloads: DownloadsViewModel, initialLink: Strin
                     OutlinedTextField(state.name, form::name, label = { Text("File name") }, modifier = Modifier.weight(2f))
                     OutlinedTextField(state.extension, form::extension, label = { Text("Extension") }, modifier = Modifier.weight(1f))
                 }
-                Text("Size: " + (state.size?.let { if (it < 0) "unknown" else Formatter.formatFileSize(context, it) } ?: "—"))
+                Text("Size: " + (state.size?.let { if (it < 0) "unknown" else "${Formatter.formatFileSize(context, it)} ($it bytes)" } ?: "—"))
                 state.resume?.let { Text("Resume: ${if (it) "Yes" else "No"}") }
                 state.finalUrl?.let { Text("Final URL: $it", style = MaterialTheme.typography.bodySmall) }
                 Text("Storage: $storage", color = if (lowSpace) com.alal.downloader.ui.theme.Warn else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -102,25 +118,23 @@ internal fun AddDownloadDialog(downloads: DownloadsViewModel, initialLink: Strin
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(wifi, { wifi = it }); Text("Wi-Fi only") }
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(retry, { retry = it }); Text("Retry on failure") }
-                (localError ?: state.error)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                (localError ?: state.error)?.let { reason ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(reason, Modifier.weight(1f), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        IconButton(onClick = {
+                            (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                                .setPrimaryClip(ClipData.newPlainText("Alal error", "${state.link}\n$reason"))
+                        }) { Icon(Icons.Outlined.ContentCopy, "Copy error") }
+                    }
+                }
                 if (state.html) TextButton(onClick = { openBrowser(state.finalUrl ?: state.link); dismiss() }) { Text("Open in browser") }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(enabled = !submitting && !state.busy && !state.html && state.link.isNotBlank(), onClick = {
-                        if (state.link.startsWith("magnet:", true)) { localError = "Torrent not supported yet" }
-                        else {
-                            submitting = true
-                            scope.launch {
-                                try {
-                                    downloads.addFile(state.link, state.referrer, state.name, state.extension, wifi, retry, agent)
-                                    dismiss()
-                                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                                catch (failure: Exception) { localError = failure.message ?: "Cannot add download" }
-                                finally { submitting = false }
-                            }
-                        }
-                    }) { Text("ADD") }
+                    TextButton(enabled = !submitting && !state.busy && !state.html && state.link.isNotBlank(), onClick = submit) { Text("ADD") }
                     TextButton(onClick = dismiss, enabled = !submitting) { Text("CANCEL") }
-                    TextButton(enabled = !state.busy && !submitting && !state.html && state.link.isNotBlank(), onClick = { scope.launch { form.probe(agent) } }) { Text(if (state.busy) "…" else "CONNECT") }
+                    // 1DM parity: CONNECT probes the link; once metadata is known the same button becomes START.
+                    TextButton(enabled = !state.busy && !submitting && !state.html && state.link.isNotBlank(), onClick = {
+                        if (state.probed) submit() else scope.launch { form.probe(agent) }
+                    }) { Text(if (state.busy) "…" else if (state.probed) "START" else "CONNECT") }
                 }
             }
         }

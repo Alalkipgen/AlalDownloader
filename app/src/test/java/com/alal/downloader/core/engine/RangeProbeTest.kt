@@ -1,10 +1,19 @@
 package com.alal.downloader.core.engine
 
+import java.io.File
+import java.io.IOException
+import java.net.ServerSocket
+import javax.net.ssl.SSLHandshakeException
+import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Parsing tests for range metadata and server-provided filenames. */
+/** Parsing tests for range metadata, server-provided filenames and failure reporting. */
 class RangeProbeTest {
     @Test fun parsesKnownAndUnknownTotals() {
         assertEquals(RangeProbe.ContentRange(0, 0, 100), RangeProbe.parseContentRange("bytes 0-0/100"))
@@ -37,5 +46,35 @@ class RangeProbeTest {
         assertNull(RangeProbe.parseContentDisposition("attachment; filename=\"\""))
         assertNull(RangeProbe.parseContentDisposition(null))
         assertNull(RangeProbe.parseContentDisposition("attachment; filename=.."))
+    }
+
+    @Test fun failureMessageNamesRootCauseAndHost() {
+        val wrapped = IOException("wrapper", SSLHandshakeException("handshake aborted"))
+        assertEquals("SSLHandshakeException: handshake aborted (mmunicode.org.mm)",
+            RangeProbe.describe(wrapped, "https://mmunicode.org.mm/downloads/zips/All-in-One_Pyidaungsu_Font.zip"))
+        assertEquals("IOException: no detail (example.com)", RangeProbe.describe(IOException(), "https://example.com/a"))
+    }
+
+    @Test fun connectProbeMakesASingleAttemptAndReportsTheRealReason() = runBlocking {
+        val port = ServerSocket(0).use { it.localPort }
+        val client = OkHttpClient()
+        try {
+            val started = System.nanoTime()
+            var failure: DownloadError.Network? = null
+            try {
+                RangeProbe(client).probe(DownloadRequest("http://127.0.0.1:$port/file.zip", "file.zip",
+                    targetDir = File("."), retryOnFailure = false))
+            } catch (network: DownloadError.Network) { failure = network }
+            val elapsedMillis = (System.nanoTime() - started) / 1_000_000
+            assertNotNull(failure)
+            val message = failure!!.message.orEmpty()
+            assertFalse(message, message.contains("probe failed"))
+            assertTrue(message, message.contains("127.0.0.1"))
+            assertTrue(message, message.contains("Exception"))
+            assertTrue("took $elapsedMillis ms; retry backoff must not run for Connect", elapsedMillis < 5_000)
+        } finally {
+            client.dispatcher.executorService.shutdownNow()
+            client.connectionPool.evictAll()
+        }
     }
 }

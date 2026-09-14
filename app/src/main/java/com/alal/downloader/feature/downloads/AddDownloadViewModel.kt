@@ -24,7 +24,10 @@ class AddDownloadViewModel(
         val link: String = "", val referrer: String = "", val name: String = "", val extension: String = "",
         val size: Long? = null, val resume: Boolean? = null, val finalUrl: String? = null,
         val busy: Boolean = false, val html: Boolean = false, val error: String? = null,
-    )
+    ) {
+        /** Connect succeeded for the current link; the dialog may offer START. */
+        val probed: Boolean get() = size != null && !html && error == null && !busy
+    }
     private val mutableState = MutableStateFlow(UiState())
     val state = mutableState.asStateFlow()
     private var revision = 0
@@ -47,8 +50,9 @@ class AddDownloadViewModel(
         try {
             val result = withContext(io) {
                 val url = FilenameResolver.normalizeUrl(input.link)
+                // Interactive probe: a single attempt so the real failure reason shows up right away.
                 prober.probe(DownloadRequest(url, FilenameResolver.resolve(url), targetDir = File("."),
-                    referer = input.referrer.trim().takeIf { it.isNotEmpty() }, userAgent = userAgent))
+                    referer = input.referrer.trim().takeIf { it.isNotEmpty() }, userAgent = userAgent, retryOnFailure = false))
             }
             if (revision != version) return
             val filename = result.fileName ?: FilenameResolver.resolve(result.finalUrl)
@@ -63,7 +67,8 @@ class AddDownloadViewModel(
             if (revision == version) mutableState.value = state.value.copy(busy = false, html = true,
                 finalUrl = page.url, error = "This is a web page, not a file")
         } catch (failure: Exception) {
-            if (revision == version) mutableState.value = state.value.copy(busy = false, error = failure.message ?: "probe failed")
+            if (revision == version) mutableState.value = state.value.copy(busy = false,
+                error = failure.message?.takeIf { it.isNotBlank() } ?: "${failure.javaClass.simpleName}: probe failed")
         }
     }
 }
