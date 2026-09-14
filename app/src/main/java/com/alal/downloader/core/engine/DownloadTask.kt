@@ -109,6 +109,8 @@ class DownloadTask(
             ) throw DownloadError.Unknown("Final file size or segment coverage mismatch")
             storage.complete(state)
             update(state.copy(totalBytes = expected, status = DownloadStatus.COMPLETED, speedBytesPerSecond = 0))
+        } catch (page: NeedsBrowser) {
+            update(state.copy(status = DownloadStatus.NEEDS_BROWSER, finalUrl = page.url, error = null, speedBytesPerSecond = 0))
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable + Dispatchers.IO) {
                 update(state.copy(status = DownloadStatus.PAUSED, speedBytesPerSecond = 0))

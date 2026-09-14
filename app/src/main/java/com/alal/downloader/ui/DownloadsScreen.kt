@@ -86,6 +86,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
     fun action(item: DownloadState) {
         when (item.status) {
             DownloadStatus.RUNNING, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI -> viewModel.pause(item.id)
+            DownloadStatus.NEEDS_BROWSER -> reopen(item)
             DownloadStatus.COMPLETED -> scope.launch {
                 try { DownloadFiles.open(context, item) }
                 catch (cancelled: CancellationException) { throw cancelled }

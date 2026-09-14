@@ -57,6 +57,7 @@ class SegmentDownloader(client: OkHttpClient, private val limiter: TransferLimit
                 val offset = segment.start + downloaded
                 val range = if (ranged) "bytes=$offset-${segment.end}" else null
                 http.execute(request, "GET", range, if (ranged) validator else null).use { response ->
+                    HtmlGuard.check(request.url, response.header("Content-Type"), response.header("Content-Disposition"))
                     if (ranged && response.code == 200) throw RangeFallback()
                     checkHttp(response.code)
                     if (ranged) {

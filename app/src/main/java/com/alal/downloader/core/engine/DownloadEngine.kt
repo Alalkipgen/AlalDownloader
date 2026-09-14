@@ -79,7 +79,7 @@ class DownloadEngine(
         val loaded = store.load()
         interrupted.addAll(loaded.filter { it.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI) }.map { it.id })
         val saved = loaded.map {
-            if (it.status in setOf(DownloadStatus.COMPLETED, DownloadStatus.FAILED, DownloadStatus.CANCELLED)) it else
+            if (it.status in setOf(DownloadStatus.COMPLETED, DownloadStatus.FAILED, DownloadStatus.CANCELLED, DownloadStatus.NEEDS_BROWSER)) it else
                 try {
                     it.copy(status = DownloadStatus.PAUSED, speedBytesPerSecond = 0,
                         segments = recoverSegments(it.segments, storage.length(it)))
@@ -101,7 +101,7 @@ class DownloadEngine(
             "Range and If-Range headers are managed by the engine"
         }
         val snapshot = DownloadState(UUID.randomUUID().toString(), request.copy(headers = request.headers.toMap()),
-            status = if (networkAllowed) DownloadStatus.QUEUED else waitingStatus)
+            status = if (networkAllowed) DownloadStatus.QUEUED else waitingStatus, totalBytes = request.contentLength)
         store.save(snapshot)
         mutableStates.update { it + snapshot }
         if (networkAllowed) enqueue(snapshot, front)
@@ -149,7 +149,10 @@ class DownloadEngine(
         interrupted.remove(id)
         joinStoppedJob(id)
         val next = current.copy(
-            request = current.request.copy(url = url, headers = headers.toMap()), finalUrl = url,
+            request = current.request.copy(url = url, headers = headers.toMap(),
+                cookies = headers.entries.find { it.key.equals("Cookie", true) }?.value,
+                referer = headers.entries.find { it.key.equals("Referer", true) }?.value ?: current.request.referrerPageUrl,
+                userAgent = headers.entries.find { it.key.equals("User-Agent", true) }?.value), finalUrl = url,
             status = if (networkAllowed) DownloadStatus.QUEUED else waitingStatus,
             error = null, speedBytesPerSecond = 0,
         )
@@ -160,7 +163,7 @@ class DownloadEngine(
 
     private suspend fun resumeLocked(id: String) {
         val current = mutableStates.value.find { it.id == id } ?: return
-        if (current.status in setOf(DownloadStatus.COMPLETED, DownloadStatus.RUNNING, DownloadStatus.QUEUED)) return
+        if (current.status in setOf(DownloadStatus.COMPLETED, DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.NEEDS_BROWSER)) return
         joinStoppedJob(id)
         val next = current.copy(status = if (networkAllowed) DownloadStatus.QUEUED else waitingStatus, error = null)
         store.save(next)

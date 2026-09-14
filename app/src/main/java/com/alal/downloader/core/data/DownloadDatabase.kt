@@ -39,6 +39,9 @@ data class DownloadEntity(
     val destinationUri: String? = null,
     val segmentCount: Int? = null,
     @ColumnInfo(defaultValue = "0") val preserveFileName: Boolean = false,
+    val cookies: String? = null,
+    val referer: String? = null,
+    val userAgent: String? = null,
 )
 
 /** Durable byte offsets belonging to a single parent download. */
@@ -90,7 +93,7 @@ abstract class DownloadDao {
 }
 
 /** Room database for restart-safe download metadata and segment offsets. */
-@Database(entities = [DownloadEntity::class, SegmentEntity::class, HistoryEntry::class], version = 4, exportSchema = true)
+@Database(entities = [DownloadEntity::class, SegmentEntity::class, HistoryEntry::class], version = 5, exportSchema = true)
 abstract class DownloadDatabase : RoomDatabase() {
     abstract fun downloads(): DownloadDao
     abstract fun history(): HistoryDao

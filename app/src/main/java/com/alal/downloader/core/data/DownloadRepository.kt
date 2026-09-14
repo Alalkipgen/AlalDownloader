@@ -26,7 +26,10 @@ class DownloadRepository @Inject constructor(private val database: DownloadDatab
             DownloadState(
                 id = entity.id,
                 request = DownloadRequest(entity.url, entity.requestFileName, headers, entity.referrerPageUrl,
-                    File(entity.targetDir), entity.destinationKind, entity.treeUri, entity.segmentCount, entity.preserveFileName),
+                    File(entity.targetDir), entity.destinationKind, entity.treeUri, entity.segmentCount, entity.preserveFileName,
+                    cookies = entity.cookies ?: headers.entries.find { it.key.equals("Cookie", true) }?.value,
+                    referer = entity.referer ?: headers.entries.find { it.key.equals("Referer", true) }?.value ?: entity.referrerPageUrl,
+                    userAgent = entity.userAgent ?: headers.entries.find { it.key.equals("User-Agent", true) }?.value),
                 destinationUri = entity.destinationUri,
                 fileName = entity.fileName,
                 totalBytes = entity.totalBytes,
@@ -70,6 +73,7 @@ class DownloadRepository @Inject constructor(private val database: DownloadDatab
             destinationUri = state.destinationUri,
             segmentCount = state.request.segmentCount,
             preserveFileName = state.request.preserveFileName,
+            cookies = state.request.cookies, referer = state.request.referer, userAgent = state.request.userAgent,
         )
         database.downloads().save(entity, state.segments.map {
             SegmentEntity(state.id, it.index, it.start, it.end, it.downloaded)

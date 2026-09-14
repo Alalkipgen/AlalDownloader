@@ -37,7 +37,7 @@ class HistoryMigrationTest {
         }
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = Room.databaseBuilder(context, DownloadDatabase::class.java, name)
-            .addMigrations(HistoryMigration).build()
+            .addMigrations(HistoryMigration, BrowserHeadersMigration).build()
         try {
                 runBlocking {
                     val entry = HistoryEntry(url = "https://example.com", title = "First", host = "example.com", visitedAt = 1)

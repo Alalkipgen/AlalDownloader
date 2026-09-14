@@ -56,12 +56,12 @@ fun DownloadCard(item: DownloadState, queuePosition: Int, selected: Boolean, cli
             }
             val icon = when (item.status) {
                 DownloadStatus.RUNNING, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI -> Icons.Outlined.Pause
-                DownloadStatus.COMPLETED -> Icons.Outlined.OpenInNew
+                DownloadStatus.COMPLETED, DownloadStatus.NEEDS_BROWSER -> Icons.Outlined.OpenInNew
                 DownloadStatus.FAILED -> Icons.Outlined.Refresh
                 else -> Icons.Outlined.PlayArrow
             }
             IconButton(onClick = action, modifier = Modifier.size(34.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(11.dp))) {
-                Icon(icon, when (item.status) { DownloadStatus.COMPLETED -> "Open"; DownloadStatus.FAILED -> "Retry"; DownloadStatus.RUNNING -> "Pause"; else -> "Resume" }, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                Icon(icon, when (item.status) { DownloadStatus.NEEDS_BROWSER -> "Open in browser"; DownloadStatus.COMPLETED -> "Open"; DownloadStatus.FAILED -> "Retry"; DownloadStatus.RUNNING -> "Pause"; else -> "Resume" }, tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
     }

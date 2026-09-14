@@ -14,10 +14,15 @@ data class DownloadRequest(
     val treeUri: String? = null,
     val segmentCount: Int? = null,
     val preserveFileName: Boolean = false,
+    val cookies: String? = headers.entries.find { it.key.equals("Cookie", true) }?.value,
+    val referer: String? = headers.entries.find { it.key.equals("Referer", true) }?.value ?: referrerPageUrl,
+    val userAgent: String? = headers.entries.find { it.key.equals("User-Agent", true) }?.value,
+    val mimeType: String? = null,
+    val contentLength: Long = -1,
 )
 
 /** Persistable lifecycle of a download. */
-enum class DownloadStatus { QUEUED, RUNNING, WAITING_FOR_NETWORK, WAITING_FOR_WIFI, PAUSED, COMPLETED, FAILED, CANCELLED }
+enum class DownloadStatus { QUEUED, RUNNING, WAITING_FOR_NETWORK, WAITING_FOR_WIFI, PAUSED, COMPLETED, FAILED, CANCELLED, NEEDS_BROWSER }
 
 /** Inclusive segment boundaries and durable bytes written within them. */
 data class Segment(val index: Int, val start: Long, val end: Long, val downloaded: Long = 0) {
@@ -70,6 +75,9 @@ interface DownloadStore {
     suspend fun save(state: DownloadState)
     suspend fun delete(id: String)
 }
+
+/** A page response that must be opened interactively rather than saved. */
+class NeedsBrowser(val url: String) : Exception("This is a web page, not a file")
 
 internal class RangeFallback : Exception()
 

@@ -36,7 +36,8 @@ class BrowserViewModel @Inject constructor(
         check(tree != null || Build.VERSION.SDK_INT >= 29) { "Choose a folder first" }
         require(segments in 1..32) { "Segment count must be 1..32" }
         return DownloadRequest(capture.url, BrowserPolicy.sanitize(name), capture.headers, capture.referrer,
-            context.filesDir, if (tree == null) "media" else "tree", tree, segments, preserveFileName = true)
+            context.filesDir, if (tree == null) "media" else "tree", tree, segments, preserveFileName = true,
+            mimeType = capture.mimeType, contentLength = capture.size)
     }
 
     fun submit(capture: BrowserCapture, name: String, segments: Int, refreshed: () -> Unit, done: () -> Unit) {

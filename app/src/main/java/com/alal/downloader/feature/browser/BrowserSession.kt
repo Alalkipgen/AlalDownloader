@@ -325,7 +325,7 @@ class BrowserSession(private val context: Context) {
             headers.keys.filter { it.equals(name, true) }.toList().forEach { headers.remove(it) }
             headers[name] = value
         }
-        set("User-Agent", ua ?: tab.webView.settings.userAgentString)
+        set("User-Agent", tab.webView.settings.userAgentString)
         set("Cookie", CookieManager.getInstance().getCookie(url))
         set("Referer", tab.webView.url?.takeIf { it.toHttpUrlOrNull() != null })
         set("Accept", headers.entries.find { it.key.equals("Accept", true) }?.value ?: "*/*")

@@ -30,9 +30,12 @@ internal class DownloadHttp(private val client: OkHttpClient) {
     @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun executeOnce(client: OkHttpClient, input: DownloadRequest, url: String, method: String, range: String?, validator: String?): Response {
         val builder = Request.Builder().url(url)
+        input.cookies?.let { builder.header("Cookie", it) }
+        input.referer?.let { builder.header("Referer", it) }
+        input.userAgent?.let { builder.header("User-Agent", it) }
         input.headers.forEach { (name, value) -> builder.header(name, value) }
         if (input.headers.keys.none { it.equals("Accept-Encoding", true) }) builder.header("Accept-Encoding", "identity")
-        if (input.headers.keys.none { it.equals("Referer", true) }) {
+        if (input.referer == null && input.headers.keys.none { it.equals("Referer", true) }) {
             input.referrerPageUrl?.let { builder.header("Referer", it) }
         }
         if (range != null) builder.header("Range", range)

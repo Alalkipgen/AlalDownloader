@@ -102,6 +102,8 @@ class DownloadNotifications @Inject constructor(@ApplicationContext private val 
                     .setProgress(100, percent, state.totalBytes < 0 && state.status == DownloadStatus.RUNNING)
                 if (state.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI)) {
                     notification.addAction(action(state.id, "pause", "Pause"))
+                } else if (state.status == DownloadStatus.NEEDS_BROWSER) {
+                    notification.addAction(activityAction(state.id, "reopen_download", "Open in browser"))
                 } else if (state.canRefreshLink()) {
                     notification.addAction(activityAction(state.id, "reopen_download", "Reopen page"))
                 } else {

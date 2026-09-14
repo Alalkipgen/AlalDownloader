@@ -37,6 +37,20 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     var backgroundDialog by rememberSaveable { mutableStateOf(false) }
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
     val interrupted by viewModel.interruptedWarning.collectAsStateWithLifecycle()
+    var handledPages by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
+    val page = downloads.firstOrNull {
+        it.status == com.alal.downloader.core.engine.DownloadStatus.NEEDS_BROWSER && it.id !in handledPages
+    }
+    LaunchedEffect(page?.id) {
+        page?.let {
+            val result = snackbar.showSnackbar("This is a web page, not a file", "Open in browser")
+            handledPages = ArrayList(handledPages + it.id)
+            if (result == SnackbarResult.ActionPerformed) {
+                browser.newTab(it.request.url)
+                destination = "Browser"
+            }
+        }
+    }
     LaunchedEffect(downloads.isNotEmpty()) {
         if (downloads.isNotEmpty() && viewModel.shouldShowBackgroundPrompt()) {
             viewModel.markBackgroundPromptShown()
@@ -65,7 +79,11 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
                     try { com.alal.downloader.feature.downloads.DownloadFiles.open(context, state) }
                     catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                     catch (failure: Exception) { snackbar.showSnackbar(failure.message ?: "Cannot open download") }
-                } else { browser.reopen(state); destination = "Browser" }
+                } else {
+                    if (state.status == com.alal.downloader.core.engine.DownloadStatus.NEEDS_BROWSER) browser.newTab(state.request.url)
+                    else browser.reopen(state)
+                    destination = "Browser"
+                }
             }
         }
     }
@@ -119,7 +137,11 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
                 when (route) {
                     "Browser" -> BrowserScreen(browser, content.navigationBarsPadding(), { tick(); destination = "Downloads" }, { tick(); destination = "History" })
                     "History" -> HistoryScreen(remember(context) { context.historyRepository() }, browser, content.navigationBarsPadding()) { destination = "Browser" }
-                    "Downloads" -> DownloadsScreen(viewModel, { browser.reopen(it); destination = "Browser" }, content, { folder.launch(null) },
+                    "Downloads" -> DownloadsScreen(viewModel, {
+                        if (it.status == com.alal.downloader.core.engine.DownloadStatus.NEEDS_BROWSER) browser.newTab(it.request.url)
+                        else browser.reopen(it)
+                        destination = "Browser"
+                    }, content, { folder.launch(null) },
                         openBrowser = { tick(); destination = "Browser" }, openSettings = { tick(); destination = "Settings" })
                     else -> SettingsScreen(viewModel, browser, { folder.launch(null) }, content.navigationBarsPadding(), { backgroundDialog = true },
                         navigateBack = { tick(); destination = "Downloads" })
