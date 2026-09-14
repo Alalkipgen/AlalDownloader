@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pre-API-26 launcher icon: the adaptive mark on its own rounded blue square. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#1C32A1"
+        android:pathData="M25,3H83A22,22 0 0 1 105,25V83A22,22 0 0 1 83,105H25A22,22 0 0 1 3,83V25A22,22 0 0 1 25,3Z" />
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="1.34" android:scaleY="1.34">
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M50.5,23H57.5A4,4 0 0 1 61.5,27V41A4,4 0 0 1 57.5,45H50.5A4,4 0 0 1 46.5,41V27A4,4 0 0 1 50.5,23Z" />
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M32.64,43.92Q29,40.5 34,40.5L74,40.5Q79,40.5 75.36,43.92L57.64,60.58Q54,64 50.36,60.58Z" />
+        <path android:fillColor="#FD6818" android:fillType="evenOdd"
+            android:pathData="M33,56.5V69A10,10 0 0 0 43,79H65A10,10 0 0 0 75,69V56.5H67.5V69A2.5,2.5 0 0 1 65,71.5H43A2.5,2.5 0 0 1 40.5,69V56.5Z" />
+    </group>
+</vector>
