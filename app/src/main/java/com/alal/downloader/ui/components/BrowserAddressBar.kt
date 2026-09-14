@@ -36,11 +36,20 @@ internal fun BrowserAddressBar(
 ) {
     var addressText by remember { mutableStateOf(TextFieldValue(pageUrl)) }
     var isFocused by remember { mutableStateOf(false) }
+    var focusText by remember { mutableStateOf("") }
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(pageUrl, isFocused) {
         if (!isFocused) addressText = TextFieldValue(pageUrl)
+    }
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            withFrameNanos { }
+            if (isFocused && addressText.text == focusText && addressText.composition == null) {
+                addressText = addressText.copy(selection = TextRange(0, addressText.text.length))
+            }
+        }
     }
     fun dismiss() { focus.clearFocus(); keyboard?.hide() }
     fun submit() {
@@ -71,6 +80,7 @@ internal fun BrowserAddressBar(
                 .onFocusChanged {
                     if (it.isFocused && !isFocused) {
                         addressText = TextFieldValue(pageUrl, TextRange(0, pageUrl.length))
+                        focusText = pageUrl
                     }
                     isFocused = it.isFocused
                 }
