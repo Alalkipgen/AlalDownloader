@@ -127,6 +127,19 @@ internal fun AddDownloadDialog(downloads: DownloadsViewModel, initialLink: Strin
                         }) { Icon(Icons.Outlined.ContentCopy, "Copy error") }
                     }
                 }
+                // 1DM parity: a server with a broken certificate can still be downloaded from if the user says so.
+                state.insecureHost?.let { host ->
+                    TextButton(enabled = !state.busy && !submitting, onClick = { scope.launch { form.probeIgnoringCertificate(agent) } }) {
+                        Icon(Icons.Outlined.Warning, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("IGNORE CERTIFICATE FOR $host")
+                    }
+                }
+                if (state.insecure) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Certificate check is off for this host (unsafe)", Modifier.weight(1f),
+                        color = com.alal.downloader.ui.theme.Warn, style = MaterialTheme.typography.bodySmall)
+                    TextButton(enabled = !state.busy && !submitting, onClick = form::restoreCertificateCheck) { Text("RESTORE") }
+                }
                 if (state.html) TextButton(onClick = { openBrowser(state.finalUrl ?: state.link); dismiss() }) { Text("Open in browser") }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(enabled = !submitting && !state.busy && !state.html && state.link.isNotBlank(), onClick = submit) { Text("ADD") }

@@ -5,17 +5,20 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import kotlin.coroutines.resumeWithException
 
 internal class DownloadHttp(private val client: OkHttpClient) {
+    private val redirectClient by lazy { client.newBuilder().followRedirects(false).followSslRedirects(false).build() }
+    private val insecureClient by lazy { TlsPolicy.insecure(redirectClient) }
+
     suspend fun execute(input: DownloadRequest, method: String, range: String? = null, validator: String? = null): Response {
         var url = input.url
-        val redirectClient = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
         repeat(6) { hop ->
-            val response = executeOnce(redirectClient, input, url, method, range, validator)
+            val response = executeOnce(clientFor(url), input, url, method, range, validator)
             if (response.code !in setOf(301, 302, 303, 307, 308)) return response
             val next = response.header("Location")?.let { response.request.url.resolve(it) }
             response.close()
@@ -26,6 +29,10 @@ internal class DownloadHttp(private val client: OkHttpClient) {
         }
         throw DownloadError.Unknown("Redirect limit exceeded")
     }
+
+    /** Certificate validation is skipped only for hosts the user explicitly opted out in [TlsPolicy]. */
+    private fun clientFor(url: String): OkHttpClient =
+        if (TlsPolicy.isInsecure(url.toHttpUrlOrNull()?.host)) insecureClient else redirectClient
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun executeOnce(client: OkHttpClient, input: DownloadRequest, url: String, method: String, range: String?, validator: String?): Response {

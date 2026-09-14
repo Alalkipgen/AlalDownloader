@@ -3,6 +3,7 @@ package com.alal.downloader.feature.downloads
 import androidx.lifecycle.ViewModel
 import com.alal.downloader.core.engine.*
 import java.io.File
+import java.net.URI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,10 @@ class AddDownloadViewModel(
         val link: String = "", val referrer: String = "", val name: String = "", val extension: String = "",
         val size: Long? = null, val resume: Boolean? = null, val finalUrl: String? = null,
         val busy: Boolean = false, val html: Boolean = false, val error: String? = null,
+        /** Host whose certificate failed validation; the dialog offers to ignore it (1DM "ignore SSL errors"). */
+        val insecureHost: String? = null,
+        /** Metadata was fetched with certificate validation disabled for this host. */
+        val insecure: Boolean = false,
     ) {
         /** Connect succeeded for the current link; the dialog may offer START. */
         val probed: Boolean get() = size != null && !html && error == null && !busy
@@ -46,7 +51,7 @@ class AddDownloadViewModel(
     suspend fun probe(userAgent: String) {
         val version = revision
         val input = state.value
-        mutableState.value = input.copy(busy = true, error = null)
+        mutableState.value = input.copy(busy = true, error = null, insecureHost = null)
         try {
             val result = withContext(io) {
                 val url = FilenameResolver.normalizeUrl(input.link)
@@ -59,7 +64,8 @@ class AddDownloadViewModel(
             val dot = filename.lastIndexOf('.').takeIf { it > 0 } ?: filename.length
             mutableState.value = state.value.copy(name = filename.substring(0, dot),
                 extension = if (dot < filename.length) filename.substring(dot + 1) else "",
-                size = result.totalBytes, resume = result.acceptsRanges, finalUrl = result.finalUrl, busy = false, html = false)
+                size = result.totalBytes, resume = result.acceptsRanges, finalUrl = result.finalUrl, busy = false, html = false,
+                insecure = TlsPolicy.isInsecure(hostOf(input.link)))
         } catch (cancelled: CancellationException) {
             if (revision == version) mutableState.value = state.value.copy(busy = false)
             throw cancelled
@@ -67,8 +73,30 @@ class AddDownloadViewModel(
             if (revision == version) mutableState.value = state.value.copy(busy = false, html = true,
                 finalUrl = page.url, error = "This is a web page, not a file")
         } catch (failure: Exception) {
-            if (revision == version) mutableState.value = state.value.copy(busy = false,
-                error = failure.message?.takeIf { it.isNotBlank() } ?: "${failure.javaClass.simpleName}: probe failed")
+            if (revision == version) {
+                val host = hostOf(input.link)
+                val certificate = host != null && TlsPolicy.isCertificateFailure(failure)
+                mutableState.value = state.value.copy(busy = false, insecureHost = host.takeIf { certificate },
+                    error = if (certificate) "Certificate error: the server's certificate is not valid for $host. " +
+                        "Tap IGNORE CERTIFICATE to download anyway (unsafe).\n${failure.message.orEmpty()}"
+                    else failure.message?.takeIf { it.isNotBlank() } ?: "${failure.javaClass.simpleName}: probe failed")
+            }
         }
     }
+
+    /** 1DM "ignore SSL errors": stop validating the host that just failed and connect again. */
+    suspend fun probeIgnoringCertificate(userAgent: String) {
+        val host = state.value.insecureHost ?: return
+        TlsPolicy.allowInsecure(host)
+        probe(userAgent)
+    }
+
+    /** Re-enables certificate validation for the current host and discards metadata fetched without it. */
+    fun restoreCertificateCheck() {
+        hostOf(state.value.link)?.let(TlsPolicy::requireSecure)
+        link(state.value.link)
+    }
+
+    private fun hostOf(link: String): String? =
+        runCatching { URI(FilenameResolver.normalizeUrl(link)).host }.getOrNull()?.takeIf { it.isNotBlank() }
 }

@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.alal.downloader.core.engine.DownloadEngine
+import com.alal.downloader.core.engine.TlsPolicy
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -37,19 +38,29 @@ object DownloadModule {
 
     @Provides
     @Singleton
-    fun client(): OkHttpClient = OkHttpClient.Builder()
-        .addNetworkInterceptor { chain ->
-            if (com.alal.downloader.BuildConfig.DEBUG) {
-                val request = chain.request()
-                android.util.Log.d("AlalHttp", "${request.method} host=${request.url.host} " +
-                    "Cookie=${request.header("Cookie") != null} Referer=${request.header("Referer") != null}")
+    fun client(@ApplicationContext context: Context): OkHttpClient {
+        // Hosts the user opted out of certificate validation survive restarts so queued transfers can resume.
+        val preferences = context.getSharedPreferences("download_settings", Context.MODE_PRIVATE)
+        TlsPolicy.attach(object : TlsPolicy.Store {
+            override fun load(): Set<String> = preferences.getStringSet("insecure_hosts", emptySet()).orEmpty().toSet()
+            override fun save(hosts: Set<String>) {
+                preferences.edit().putStringSet("insecure_hosts", hosts.toSet()).apply()
             }
-            chain.proceed(chain.request())
-        }
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(false)
-        .build()
+        })
+        return OkHttpClient.Builder()
+            .addNetworkInterceptor { chain ->
+                if (com.alal.downloader.BuildConfig.DEBUG) {
+                    val request = chain.request()
+                    android.util.Log.d("AlalHttp", "${request.method} host=${request.url.host} " +
+                        "Cookie=${request.header("Cookie") != null} Referer=${request.header("Referer") != null}")
+                }
+                chain.proceed(chain.request())
+            }
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
+    }
 
     @Provides
     @Singleton
