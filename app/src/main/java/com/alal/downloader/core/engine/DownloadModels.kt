@@ -19,6 +19,8 @@ data class DownloadRequest(
     val userAgent: String? = headers.entries.find { it.key.equals("User-Agent", true) }?.value,
     val mimeType: String? = null,
     val contentLength: Long = -1,
+    val wifiOnly: Boolean = false,
+    val retryOnFailure: Boolean = true,
 )
 
 /** Persistable lifecycle of a download. */

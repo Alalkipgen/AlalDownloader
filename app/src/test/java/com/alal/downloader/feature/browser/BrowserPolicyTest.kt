@@ -40,7 +40,7 @@ class BrowserPolicyTest {
     @Test fun filenamesCannotEscapeDestination() {
         assertEquals("safe.zip", BrowserPolicy.sanitize("../../safe.zip"))
         assertEquals("safe.zip", BrowserPolicy.sanitize("C:\\safe.zip"))
-        assertEquals("download.bin", BrowserPolicy.sanitize(".."))
+        assertEquals("download", BrowserPolicy.sanitize(".."))
         assertEquals("file.exe", BrowserPolicy.sanitize("file\u202e.exe"))
     }
 

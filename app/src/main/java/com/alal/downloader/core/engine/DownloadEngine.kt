@@ -37,6 +37,7 @@ class DownloadEngine(
     private val activeTasks = linkedSetOf<String>()
     private var restored = false
     private var networkAllowed = true
+    private var onWifi = true
     private var waitingStatus = DownloadStatus.WAITING_FOR_NETWORK
     private val interrupted = linkedSetOf<String>()
 
@@ -171,9 +172,10 @@ class DownloadEngine(
         if (networkAllowed) enqueue(next)
     }
 
-    suspend fun setNetworkAllowed(allowed: Boolean, wifiRestricted: Boolean = false) = gate.withLock {
+    suspend fun setNetworkAllowed(allowed: Boolean, wifiRestricted: Boolean = false, wifi: Boolean = true) = gate.withLock {
         val previouslyAllowed = networkAllowed
         networkAllowed = allowed
+        onWifi = wifi
         waitingStatus = if (wifiRestricted) DownloadStatus.WAITING_FOR_WIFI else DownloadStatus.WAITING_FOR_NETWORK
         val waiting = setOf(DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI)
         if (!allowed) {
@@ -186,6 +188,15 @@ class DownloadEngine(
             val order = pending.toList() + mutableStates.value.filter { it.status in waiting }.map { it.id }
             pending.clear()
             for (id in order.distinct()) resumeLocked(id)
+        }
+        if (allowed) {
+            val restricted = mutableStates.value.filter { it.request.wifiOnly && !onWifi &&
+                it.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED) }
+            for (state in restricted) stopLocked(state.id, DownloadStatus.WAITING_FOR_WIFI)
+            if (onWifi) {
+                for (state in mutableStates.value.filter { it.status == DownloadStatus.WAITING_FOR_WIFI }) resumeLocked(state.id)
+            }
+            drain()
         }
     }
 
@@ -216,6 +227,12 @@ class DownloadEngine(
     private fun start(state: DownloadState) {
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
+                if (state.request.wifiOnly && !onWifi) {
+                    val waiting = state.copy(status = DownloadStatus.WAITING_FOR_WIFI)
+                    store.save(waiting)
+                    publish(waiting)
+                    return@launch
+                }
                 DownloadTask(state, client, store, state.request.segmentCount ?: segmentCount,
                     connectionsPerDownload, ::publish, storage, limiter).run()
             } catch (cancelled: CancellationException) {

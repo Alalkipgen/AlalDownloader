@@ -69,7 +69,7 @@ class DownloadCoordinator @Inject constructor(
     }
 
     private suspend fun applyNetwork() = engine.setNetworkAllowed(
-        network.allowed(settings.wifiOnly.value), network.wifiRestricted(settings.wifiOnly.value))
+        network.allowed(settings.wifiOnly.value), network.wifiRestricted(settings.wifiOnly.value), network.onWifi())
 
     fun serviceReady(token: Any) {
         owner = token

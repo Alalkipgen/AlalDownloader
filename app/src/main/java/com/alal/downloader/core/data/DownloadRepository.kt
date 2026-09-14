@@ -22,14 +22,17 @@ class DownloadRepository @Inject constructor(private val database: DownloadDatab
         database.downloads().load().map { row ->
             val entity = row.download
             val json = JSONObject(entity.headersJson)
-            val headers = json.keys().asSequence().associateWith { json.getString(it) }
+            val policy = json.optJSONObject("__downloadPolicy")
+            val headers = json.keys().asSequence().filter { it != "__downloadPolicy" }.associateWith { json.getString(it) }
             DownloadState(
                 id = entity.id,
                 request = DownloadRequest(entity.url, entity.requestFileName, headers, entity.referrerPageUrl,
                     File(entity.targetDir), entity.destinationKind, entity.treeUri, entity.segmentCount, entity.preserveFileName,
                     cookies = entity.cookies ?: headers.entries.find { it.key.equals("Cookie", true) }?.value,
                     referer = entity.referer ?: headers.entries.find { it.key.equals("Referer", true) }?.value ?: entity.referrerPageUrl,
-                    userAgent = entity.userAgent ?: headers.entries.find { it.key.equals("User-Agent", true) }?.value),
+                    userAgent = entity.userAgent ?: headers.entries.find { it.key.equals("User-Agent", true) }?.value,
+                    wifiOnly = policy?.optBoolean("wifiOnly", false) ?: false,
+                    retryOnFailure = policy?.optBoolean("retryOnFailure", true) ?: true),
                 destinationUri = entity.destinationUri,
                 fileName = entity.fileName,
                 totalBytes = entity.totalBytes,
@@ -56,7 +59,8 @@ class DownloadRepository @Inject constructor(private val database: DownloadDatab
             id = state.id,
             url = state.request.url,
             requestFileName = state.request.fileName,
-            headersJson = JSONObject(state.request.headers).toString(),
+            headersJson = JSONObject(state.request.headers).put("__downloadPolicy", JSONObject()
+                .put("wifiOnly", state.request.wifiOnly).put("retryOnFailure", state.request.retryOnFailure)).toString(),
             referrerPageUrl = state.request.referrerPageUrl,
             targetDir = state.request.targetDir.absolutePath,
             fileName = state.fileName,

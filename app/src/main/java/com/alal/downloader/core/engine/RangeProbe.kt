@@ -16,7 +16,7 @@ class RangeProbe(client: OkHttpClient) {
             try {
                 return@withContext probeOnce(request)
             } catch (failure: IOException) {
-                if (attempt == 4) throw DownloadError.Network("probe failed").apply { initCause(failure) }
+                if (!request.retryOnFailure || attempt == 4) throw DownloadError.Network("probe failed").apply { initCause(failure) }
                 delay(1_000L shl attempt)
             }
         }

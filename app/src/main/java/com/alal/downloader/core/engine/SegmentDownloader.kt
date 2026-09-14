@@ -143,7 +143,7 @@ class SegmentDownloader(client: OkHttpClient, private val limiter: TransferLimit
             } catch (error: IOException) {
                 currentCoroutineContext().ensureActive()
                 if (error.asDownloadError() is DownloadError.DiskFull) throw DownloadError.DiskFull()
-                if (attempt == 4) throw DownloadError.Network(error.message ?: "Transfer failed")
+                if (!request.retryOnFailure || attempt == 4) throw DownloadError.Network(error.message ?: "Transfer failed")
                 delay(1_000L shl attempt)
             }
         }

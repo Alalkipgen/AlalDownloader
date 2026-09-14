@@ -39,7 +39,7 @@ import kotlinx.coroutines.*
 /** Download dashboard using the existing state and command boundary. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Unit, modifier: Modifier = Modifier, chooseFolder: () -> Unit = {}, openBrowser: () -> Unit, openSettings: () -> Unit) {
+fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Unit, modifier: Modifier = Modifier, chooseFolder: () -> Unit = {}, openBrowser: () -> Unit, openSettings: () -> Unit, addLink: (String) -> Unit) {
     val live by viewModel.downloads.collectAsStateWithLifecycle()
     val latest by rememberUpdatedState(live)
     var downloads by remember { mutableStateOf(live) }
@@ -178,7 +178,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                     }
                     Text("No downloads yet", Modifier.padding(top = 18.dp), style = MaterialTheme.typography.titleMedium)
                     Text("Paste a link or open the browser to start", Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Button(onClick = { input = ""; batch = true }, shape = PillShape) { Text("Add link") }
+                    Button(onClick = { addLink(clipboardDownloadLink(context)) }, shape = PillShape) { Text("Add link") }
                 } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 100.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(shown, key = { it.id }) { item ->
                         DownloadCard(item, queue[item.id] ?: 1, item.id in selected,
@@ -187,12 +187,10 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                     }
                 }
             }
-            AddSpeedDial(dial, { dial = !dial }, add = { dial = false; input = ""; batch = true }, clipboard = {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val text = clipboard.primaryClip?.let { clip -> (0 until clip.itemCount).joinToString("\n") { clip.getItemAt(it).coerceToText(context).toString() } }.orEmpty()
-                input = Regex("(?:https?://|magnet:\\?)[^\\s<>\"]+", RegexOption.IGNORE_CASE).findAll(text).joinToString("\n") { it.value }
-                dial = false; batch = true
-            }, importFile = { dial = false; importFile.launch(arrayOf("text/plain")) })
+            AddSpeedDial(dial, { dial = !dial }, add = { dial = false; addLink(clipboardDownloadLink(context)) }, clipboard = {
+                dial = false; addLink(clipboardDownloadLink(context))
+            }, importFile = { dial = false; importFile.launch(arrayOf("text/plain")) },
+                batch = { dial = false; input = ""; batch = true })
         }
     }
     deletion?.let { ids ->

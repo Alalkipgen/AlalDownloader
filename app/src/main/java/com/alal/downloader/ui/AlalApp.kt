@@ -31,6 +31,7 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     var destination by rememberSaveable { mutableStateOf("Downloads") }
     val screenState = rememberSaveableStateHolder()
     var clipboardUrl by remember { mutableStateOf<String?>(null) }
+    var addLink by rememberSaveable { mutableStateOf<String?>(null) }
     val error by viewModel.error.collectAsStateWithLifecycle()
     val message by browserViewModel.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -64,6 +65,12 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
         }
     }
     LaunchedEffect(notificationIntent) {
+        if (notificationIntent?.action == android.content.Intent.ACTION_SEND) {
+            val shared = notificationIntent.getStringExtra(android.content.Intent.EXTRA_TEXT).orEmpty()
+            addLink = Regex("(?:https?://|magnet:\\?)[^\\s<>\"]+", RegexOption.IGNORE_CASE).find(shared)?.value ?: shared.trim()
+            notificationIntent.removeExtra(android.content.Intent.EXTRA_TEXT)
+            notificationIntent.action = null
+        }
         if (notificationIntent?.getBooleanExtra("downloads", false) == true) destination = "Downloads"
         val openId = notificationIntent?.getStringExtra("open_download")
         val reopenId = notificationIntent?.getStringExtra("reopen_download")
@@ -142,7 +149,8 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
                         else browser.reopen(it)
                         destination = "Browser"
                     }, content, { folder.launch(null) },
-                        openBrowser = { tick(); destination = "Browser" }, openSettings = { tick(); destination = "Settings" })
+                        openBrowser = { tick(); destination = "Browser" }, openSettings = { tick(); destination = "Settings" },
+                        addLink = { addLink = it })
                     else -> SettingsScreen(viewModel, browser, { folder.launch(null) }, content.navigationBarsPadding(), { backgroundDialog = true },
                         navigateBack = { tick(); destination = "Downloads" })
                 }
@@ -150,9 +158,12 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
         }
     }
     BrowserConfirmation(browser, browserViewModel, { folder.launch(null) }, { viewModel.setTree(null) })
+    addLink?.let { link ->
+        AddDownloadDialog(viewModel, link, openBrowser = { url -> browser.newTab(url); destination = "Browser" }, dismiss = { addLink = null })
+    }
     clipboardUrl?.let { url ->
         AlertDialog(onDismissRequest = { clipboardUrl = null }, title = { Text("Clipboard link") }, text = { Text(url, maxLines = 4) },
-            confirmButton = { TextButton(onClick = { browser.active?.let { browser.captureLink(it.id, url) }; clipboardUrl = null }) { Text("Download") } },
+            confirmButton = { TextButton(onClick = { addLink = url; clipboardUrl = null }) { Text("Download") } },
             dismissButton = { TextButton(onClick = { clipboardUrl = null }) { Text("Ignore") } })
     }
 }

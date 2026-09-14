@@ -28,10 +28,25 @@ class DownloadsViewModel @Inject constructor(
     private val engine: DownloadEngine,
     private val coordinator: DownloadCoordinator,
     private val intake: com.alal.downloader.core.service.DownloadIntake,
+    client: okhttp3.OkHttpClient,
     private val settings: DownloadSettings,
     val backgroundAccess: com.alal.downloader.core.service.BackgroundAccess,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+    val prober = DownloadProber { com.alal.downloader.core.engine.RangeProbe(client).probe(it) }
+
+    suspend fun addFile(url: String, referrer: String, name: String, extension: String, wifi: Boolean, retry: Boolean, agent: String) = withContext(Dispatchers.IO) {
+        val normalized = com.alal.downloader.core.engine.FilenameResolver.normalizeUrl(url)
+        val tree = settings.treeUri.value
+        check(tree != null || Build.VERSION.SDK_INT >= 29) { "Choose a download folder first" }
+        val filename = if (name.isBlank()) com.alal.downloader.core.engine.FilenameResolver.resolve(normalized)
+            else com.alal.downloader.core.engine.FileNames.sanitize(name.trim() + extension.trim().trimStart('.').takeIf { it.isNotEmpty() }?.let { ".$it" }.orEmpty())
+        intake.add(DownloadRequest(normalized, filename, targetDir = context.filesDir,
+            destinationKind = if (tree == null) "media" else "tree", treeUri = tree,
+            segmentCount = settings.segments.value, preserveFileName = name.isNotBlank(),
+            referer = referrer.trim().takeIf { it.isNotEmpty() }, userAgent = agent,
+            wifiOnly = wifi, retryOnFailure = retry))
+    }
     val autoResume = settings.autoResume
     val interruptedWarning = coordinator.interruptedWarning
     fun dismissInterruptedWarning() = coordinator.dismissInterruptedWarning()
