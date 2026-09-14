@@ -36,8 +36,9 @@ class HistoryMigrationTest {
             close()
         }
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        Room.databaseBuilder(context, DownloadDatabase::class.java, name)
-            .addMigrations(HistoryMigration).build().use { database ->
+        val database = Room.databaseBuilder(context, DownloadDatabase::class.java, name)
+            .addMigrations(HistoryMigration).build()
+        try {
                 runBlocking {
                     val entry = HistoryEntry(url = "https://example.com", title = "First", host = "example.com", visitedAt = 1)
                     database.history().record(entry)
@@ -48,6 +49,8 @@ class HistoryMigrationTest {
                     assertTrue(it.moveToFirst()); assertEquals("Latest", it.getString(0))
                     assertEquals(2, it.getInt(1)); assertEquals(2L, it.getLong(2)); assertFalse(it.moveToNext())
                 }
-            }
+        } finally {
+            database.close()
+        }
     }
 }
