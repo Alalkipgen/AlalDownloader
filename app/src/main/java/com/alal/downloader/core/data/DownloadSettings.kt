@@ -20,7 +20,7 @@ class DownloadSettings @Inject constructor(@ApplicationContext private val conte
     private val mutableSegments = MutableStateFlow(preferences.getInt("segments", 8).coerceIn(1, 32))
     private val mutableConcurrent = MutableStateFlow(preferences.getInt("concurrent", 3).coerceIn(1, 10))
     private val mutableSpeed = MutableStateFlow(preferences.getLong("speed_kib", 0).coerceIn(0, Long.MAX_VALUE / 1024))
-    private val mutableTheme = MutableStateFlow(preferences.getString("theme", "dark") ?: "dark")
+    private val mutableTheme = MutableStateFlow(preferences.getString("theme", "system") ?: "system")
     private val mutableHaptics = MutableStateFlow(preferences.getBoolean("haptics", true))
     val segments = mutableSegments.asStateFlow()
     val concurrent = mutableConcurrent.asStateFlow()

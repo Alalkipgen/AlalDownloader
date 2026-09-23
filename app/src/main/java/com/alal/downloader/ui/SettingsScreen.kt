@@ -4,6 +4,7 @@ import android.os.Build
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,11 +15,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -133,14 +137,12 @@ fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, choos
 /** Theme mode, preview tiles, accent choice and the three appearance switches. */
 @Composable
 private fun AppearanceControls(theme: String, setTheme: (String) -> Unit, appearance: AppearanceState) {
-    val context = LocalContext.current
     val brand = LocalBrandColors.current
-    val effectiveTheme = if (context.getSharedPreferences("download_settings", 0).contains("theme")) theme else "system"
     Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth().clip(PillShape).background(MaterialTheme.colorScheme.surfaceVariant).padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf("light", "dark", "system").forEach { value ->
-                val active = effectiveTheme == value
+                val active = theme == value
                 Box(Modifier.weight(1f).clip(PillShape)
                     .background(if (active) brand.horizontal() else SolidColor(Color.Transparent))
                     .clickable { setTheme(value) }.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
@@ -150,10 +152,10 @@ private fun AppearanceControls(theme: String, setTheme: (String) -> Unit, appear
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ThemePreview("Light", Color(0xFFF5F4FA), Color.White, Color(0xFF111118), effectiveTheme == "light" && !appearance.amoled, Modifier.weight(1f)) {
+            ThemePreview("Light", Color(0xFFF5F4FA), Color.White, Color(0xFF111118), theme == "light" && !appearance.amoled, Modifier.weight(1f)) {
                 setTheme("light"); appearance.updateAmoled(false)
             }
-            ThemePreview("Dark", Bg, Surface, OnBg, effectiveTheme == "dark" && !appearance.amoled, Modifier.weight(1f)) {
+            ThemePreview("Dark", Bg, Surface, OnBg, theme == "dark" && !appearance.amoled, Modifier.weight(1f)) {
                 setTheme("dark"); appearance.updateAmoled(false)
             }
             ThemePreview("AMOLED black", Color.Black, Color(0xFF0D0D11), OnBg, appearance.amoled, Modifier.weight(1f)) {
@@ -306,17 +308,51 @@ internal fun TransferControls(viewModel: DownloadsViewModel, applied: () -> Unit
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingSlider(label: String, value: Int, maximum: Int, change: (Int) -> Unit, finished: () -> Unit) {
     val tick = rememberUiTick()
     val brand = LocalBrandColors.current
+    val rail = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    val fraction = (value - 1).toFloat() / (maximum - 1).toFloat()
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f))
-        Text("$value", Modifier.clip(PillShape).background(brand.base.copy(alpha = 0.16f)).padding(horizontal = 10.dp, vertical = 3.dp),
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
+        Text("$value", Modifier.clip(PillShape).background(brand.base.copy(alpha = 0.14f)).padding(horizontal = 10.dp, vertical = 3.dp),
             style = MaterialTheme.typography.labelSmall, color = brand.bright)
     }
-    Slider(value.toFloat(), { val next = it.roundToInt(); if (next != value) { tick(); change(next) } }, valueRange = 1f..maximum.toFloat(), steps = maximum - 2, onValueChangeFinished = finished)
-    Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        listOf(1, maximum / 2, maximum).forEach { Text("$it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    Box(Modifier.fillMaxWidth().height(34.dp), contentAlignment = Alignment.Center) {
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { val next = it.roundToInt(); if (next != value) { tick(); change(next) } },
+            modifier = Modifier.fillMaxWidth(),
+            onValueChangeFinished = finished,
+            steps = maximum - 2,
+            thumb = { Box(Modifier.size(15.dp).clip(CircleShape).background(brand.horizontal())) },
+            track = {
+                Canvas(Modifier.fillMaxWidth().height(3.dp)) {
+                    val middle = size.height / 2f
+                    drawLine(rail, Offset(0f, middle), Offset(size.width, middle), size.height, StrokeCap.Round)
+                    if (fraction > 0f) drawLine(brand.horizontal(), Offset(0f, middle), Offset(size.width * fraction, middle), size.height, StrokeCap.Round)
+                }
+            },
+            valueRange = 1f..maximum.toFloat(),
+        )
+    }
+    TickScale(maximum)
+}
+
+/** Evenly spaced scale below a slider that labels only the lowest, middle and highest value. */
+@Composable
+private fun TickScale(maximum: Int) {
+    val captions = mapOf(0 to "1", ScaleSlots / 2 to "${maximum / 2}", ScaleSlots to "$maximum")
+    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically) {
+        repeat(ScaleSlots + 1) { slot ->
+            val caption = captions[slot]
+            if (caption != null) Text(caption, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else Box(Modifier.size(2.5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)))
+        }
     }
 }
+
+private const val ScaleSlots = 10

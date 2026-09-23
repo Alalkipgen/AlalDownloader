@@ -50,6 +50,10 @@ val SectionGap = 14.dp
 @Immutable
 data class BrandColors(val base: Color, val bright: Color, val deep: Color)
 
+/** Whether the stored theme choice resolves to a dark palette right now. */
+@Composable
+fun isDarkTheme(theme: String): Boolean = theme == "dark" || (theme == "system" && isSystemInDarkTheme())
+
 val LocalBrandColors = staticCompositionLocalOf { BrandColors(Accent, Accent2, AccentDeep) }
 
 fun BrandColors.horizontal(): Brush = Brush.horizontalGradient(listOf(base, bright))
@@ -110,7 +114,7 @@ fun AlalTheme(
     amoled: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val dark = theme == "dark" || (theme == "system" && isSystemInDarkTheme())
+    val dark = isDarkTheme(theme)
     val context = LocalContext.current
     val option = accentFor(accent)
     val useDynamic = dynamic && Build.VERSION.SDK_INT >= 31
