@@ -3,8 +3,8 @@
     <style name="Theme.Alal" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowBackground">#000000</item>
+        <item name="android:windowBackground">#0B0B0F</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">#C7A4FF</item>
+        <item name="android:colorAccent">#8B7BFF</item>
     </style>
 </resources>

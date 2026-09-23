@@ -43,17 +43,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             val theme by downloadsViewModel.theme.collectAsStateWithLifecycle()
             val haptics by downloadSettings.haptics.collectAsStateWithLifecycle()
-            val appearance = remember { getSharedPreferences("ui_appearance", MODE_PRIVATE) }
-            var dynamic by remember { mutableStateOf(appearance.getBoolean("dynamic", false)) }
+            val appearance = remember { AppearanceState(getSharedPreferences("ui_appearance", MODE_PRIVATE)) }
             val effectiveTheme = if (getSharedPreferences("download_settings", MODE_PRIVATE).contains("theme")) theme else "system"
             CompositionLocalProvider(LocalDownloadSettings provides downloadSettings, LocalHapticsEnabled provides haptics,
-                LocalDynamicColor provides dynamic, LocalSetDynamicColor provides { value ->
-                    appearance.edit().putBoolean("dynamic", value).apply(); dynamic = value
-                }) {
-            AlalTheme(effectiveTheme, dynamic) {
-                AlalApp(downloadsViewModel, browserViewModel, browserHostViewModel.session, notificationIntent)
-                PreviousCrashNotice()
-            }
+                LocalAppearance provides appearance) {
+                AlalTheme(effectiveTheme, appearance.dynamic, appearance.accent, appearance.amoled) {
+                    AlalApp(downloadsViewModel, browserViewModel, browserHostViewModel.session, notificationIntent)
+                    PreviousCrashNotice()
+                }
             }
         }
     }
