@@ -4,17 +4,20 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.*
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.alal.downloader.core.engine.*
@@ -24,45 +27,70 @@ import com.alal.downloader.ui.theme.*
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DownloadCard(item: DownloadState, queuePosition: Int, selected: Boolean, click: () -> Unit, longClick: () -> Unit, action: () -> Unit) {
+    val brand = LocalBrandColors.current
     val percent by remember(item) { derivedStateOf { DownloadPresentation.percent(item) ?: 0 } }
     val progress by animateFloatAsState(percent / 100f, tween(250), label = "download progress")
-    val badge = when (item.status) {
-        DownloadStatus.RUNNING -> Triple("DOWNLOADING", RunBg, Accent2)
-        DownloadStatus.QUEUED -> Triple("QUEUED · #$queuePosition", QueuedBg, QueuedFg)
-        DownloadStatus.COMPLETED -> Triple("COMPLETED", Color(0xFF0F2E23), Ok)
-        DownloadStatus.FAILED -> Triple("FAILED", Color(0xFF33161F), Err)
-        else -> Triple(item.status.name.replace('_', ' '), MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
+    val running = item.status == DownloadStatus.RUNNING
+    val done = item.status == DownloadStatus.COMPLETED
+    val failed = item.status == DownloadStatus.FAILED
+    val size = DownloadPresentation.bytes(item.totalBytes)
+    val meta = when (item.status) {
+        DownloadStatus.RUNNING -> "${DownloadPresentation.bytes(item.downloadedBytes)} of $size \u00b7 ${DownloadPresentation.bytes(item.speedBytesPerSecond)}/s \u00b7 ${DownloadPresentation.eta(item)} left"
+        DownloadStatus.QUEUED -> "Queued \u00b7 #$queuePosition \u00b7 $size"
+        DownloadStatus.COMPLETED -> "Done \u00b7 $size"
+        DownloadStatus.FAILED -> item.error?.message ?: "Failed \u00b7 tap to retry"
+        DownloadStatus.NEEDS_BROWSER -> "Web page \u00b7 open in browser"
+        else -> "${item.status.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }} \u00b7 ${DownloadPresentation.bytes(item.downloadedBytes)} of $size"
     }
     Card(Modifier.fillMaxWidth().combinedClickable(onClick = click, onLongClick = longClick), shape = CardShape,
-        border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+        border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
             FileTypeTile(item.fileName)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row {
-                    val suffix = item.fileName.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
-                    Text(item.fileName.removeSuffix(suffix), Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (suffix.isNotEmpty()) Text(suffix, maxLines = 1)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(item.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+                Text(meta, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall,
+                    color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                when {
+                    done -> Unit
+                    item.status == DownloadStatus.QUEUED -> DashedTrack()
+                    else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(9.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(brand.horizontal()))
+                        }
+                        Text("$percent%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                Surface(color = badge.second, shape = RoundedCornerShape(7.dp)) {
-                    Text(badge.first, Modifier.padding(horizontal = 8.dp, vertical = 3.dp), color = badge.third, style = MaterialTheme.typography.labelSmall)
-                }
-                if (item.status == DownloadStatus.RUNNING) Text("${DownloadPresentation.bytes(item.speedBytesPerSecond)}/s · ETA ${DownloadPresentation.eta(item)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(9.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                    Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(listOf(Accent, Accent2))))
-                }
-                Text("$percent% · ${DownloadPresentation.bytes(item.downloadedBytes)} / ${DownloadPresentation.bytes(item.totalBytes)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${item.segments.size.takeIf { it > 0 } ?: item.request.segmentCount ?: 1} parts · Resume: ${if (item.acceptsRanges) "Yes" else "No"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            val icon = when (item.status) {
-                DownloadStatus.RUNNING, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI -> Icons.Outlined.Pause
-                DownloadStatus.COMPLETED, DownloadStatus.NEEDS_BROWSER -> Icons.Outlined.OpenInNew
-                DownloadStatus.FAILED -> Icons.Outlined.Refresh
-                else -> Icons.Outlined.PlayArrow
-            }
-            IconButton(onClick = action, modifier = Modifier.size(34.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(11.dp))) {
-                Icon(icon, when (item.status) { DownloadStatus.NEEDS_BROWSER -> "Open in browser"; DownloadStatus.COMPLETED -> "Open"; DownloadStatus.FAILED -> "Retry"; DownloadStatus.RUNNING -> "Pause"; else -> "Resume" }, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            if (done) Box(Modifier.size(34.dp).background(Ok.copy(alpha = 0.16f), CircleShape).clickable(onClick = action), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Check, "Open", Modifier.size(20.dp), tint = Ok)
+            } else {
+                val icon = when (item.status) {
+                    DownloadStatus.RUNNING, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI -> Icons.Outlined.Pause
+                    DownloadStatus.NEEDS_BROWSER -> Icons.Outlined.OpenInNew
+                    DownloadStatus.FAILED -> Icons.Outlined.Refresh
+                    else -> Icons.Outlined.PlayArrow
+                }
+                val label = when (item.status) {
+                    DownloadStatus.NEEDS_BROWSER -> "Open in browser"
+                    DownloadStatus.FAILED -> "Retry"
+                    DownloadStatus.RUNNING -> "Pause"
+                    else -> "Resume"
+                }
+                IconButton(onClick = action, modifier = Modifier.size(34.dp).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)) {
+                    Icon(icon, label, Modifier.size(19.dp), tint = if (running) brand.bright else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
+    }
+}
+
+/** Queued rows show a dashed track instead of a filled bar: nothing has transferred yet. */
+@Composable
+private fun DashedTrack() {
+    val color = MaterialTheme.colorScheme.outline
+    Canvas(Modifier.fillMaxWidth().height(6.dp)) {
+        drawLine(color, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), strokeWidth = 2.dp.toPx(),
+            cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(7.dp.toPx(), 7.dp.toPx())))
     }
 }
