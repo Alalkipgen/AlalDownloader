@@ -29,7 +29,7 @@ https://github.com/google/fonts/tree/main/ofl/poppins.
 The requested Poppins Medium, SemiBold, and Bold assets are not present in
 this checkout. When they are bundled, include upstream `OFL.txt` alongside
 them and preserve its copyright and reserved-font-name provisions. This CI
-change does not download fonts or implement the Alal rebrand.
+change does not download fonts or implement the Downloader rebrand.
 
 ## Dependency inventory
 

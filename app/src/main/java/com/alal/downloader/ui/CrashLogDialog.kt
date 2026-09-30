@@ -38,7 +38,7 @@ fun CrashLogDialog(title: String, report: String?, dismiss: () -> Unit) {
         TextButton(enabled = report != null, onClick = {
             context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, "Alal Downloader crash log")
+                putExtra(Intent.EXTRA_SUBJECT, "Downloader crash log")
                 putExtra(Intent.EXTRA_TEXT, report)
             }, "Share crash log"))
         }) { Text("Share") }

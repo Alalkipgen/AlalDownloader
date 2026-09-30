@@ -220,7 +220,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
         var failure by remember { mutableStateOf<String?>(null) }
         AlertDialog(onDismissRequest = { showExternal = false }, title = { Text("Open magnet/torrent") }, text = {
             Column {
-                Text("Alal transfers HTTP(S) files. Magnet links require an installed torrent app.")
+                Text("Downloader transfers HTTP(S) files. Magnet links require an installed torrent app.")
                 OutlinedTextField(link, { link = it }, label = { Text("Magnet or torrent URL") })
                 failure?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
@@ -291,7 +291,7 @@ fun BrowserConfirmation(session: BrowserSession, viewModel: BrowserViewModel, ch
             OutlinedTextField(name, { name = it }, label = { Text("Filename") }, enabled = capture.refreshId == null && !submitting, modifier = Modifier.fillMaxWidth())
             Text(if (capture.size >= 0) "Size: ${capture.size} bytes" else "Size: unknown")
             if (capture.refreshId == null) {
-                Text("Target: ${tree ?: if (Build.VERSION.SDK_INT >= 29) "Download/Alal" else "Select a folder"}")
+                Text("Target: ${tree ?: if (Build.VERSION.SDK_INT >= 29) "Download/Downloader" else "Select a folder"}")
                 Row {
                     TextButton(onClick = chooseFolder, enabled = !submitting) { Text("Choose folder") }
                     if (Build.VERSION.SDK_INT >= 29) TextButton(onClick = defaultFolder, enabled = !submitting) { Text("Use Downloads") }

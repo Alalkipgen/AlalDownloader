@@ -26,10 +26,10 @@ class BackgroundAccess @Inject constructor(@ApplicationContext private val conte
     }
     val hasAutostart: Boolean get() = component != null
     val instruction: String get() = when {
-        manufacturer.contains("samsung") -> "Remove Alal from Sleeping apps and Deep sleeping apps; allow unrestricted battery use."
-        manufacturer.contains("huawei") || manufacturer.contains("honor") -> "In App launch, manage Alal manually and allow auto-launch, secondary launch and background activity."
+        manufacturer.contains("samsung") -> "Remove Downloader from Sleeping apps and Deep sleeping apps; allow unrestricted battery use."
+        manufacturer.contains("huawei") || manufacturer.contains("honor") -> "In App launch, manage Downloader manually and allow auto-launch, secondary launch and background activity."
         hasAutostart -> "Enable Autostart, then set Battery saver → No restrictions."
-        else -> "Allow unrestricted battery use for Alal to help downloads continue with the screen off."
+        else -> "Allow unrestricted battery use for Downloader to help downloads continue with the screen off."
     }
     fun ignored(): Boolean = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
     fun requestBattery() {

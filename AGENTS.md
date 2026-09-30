@@ -1,4 +1,4 @@
-# OneDown development constraints
+# Downloader development constraints
 
 ## Scope
 

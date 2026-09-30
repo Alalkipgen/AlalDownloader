@@ -46,7 +46,7 @@ class DownloadNotifications @Inject constructor(@ApplicationContext private val 
     fun recoveryRequired() {
         try {
             manager.notify(3, builder(COMPLETE).setContentTitle("Resume interrupted downloads")
-                .setContentText("Android restricted background startup. Tap to open Alal and resume.").setAutoCancel(true).build())
+                .setContentText("Android restricted background startup. Tap to open Downloader and resume.").setAutoCancel(true).build())
         } catch (_: SecurityException) { }
     }
 
@@ -75,7 +75,7 @@ class DownloadNotifications @Inject constructor(@ApplicationContext private val 
         val unknown = active.isEmpty() || active.any { it.totalBytes < 0 }
         val percent = if (total > 0) (done / total * 100).toInt().coerceIn(0, 100) else 0
         val waiting = active.isNotEmpty() && active.all { it.status in setOf(DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI) }
-        val notification = builder(PROGRESS).setContentTitle("Alal · ${active.size} downloads")
+        val notification = builder(PROGRESS).setContentTitle("Downloader · ${active.size} downloads")
             .setContentText("${active.count { it.status == DownloadStatus.RUNNING }} downloading · ${active.count { it.status != DownloadStatus.RUNNING }} waiting · ${active.sumOf { it.speedBytesPerSecond } / 1024} KiB/s")
             .addAction(action("all", "pause_all", "Pause all"))
             .setProgress(100, percent, unknown && !waiting)

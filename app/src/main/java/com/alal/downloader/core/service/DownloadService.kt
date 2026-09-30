@@ -57,10 +57,10 @@ class DownloadService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Alal:download")
+        wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Downloader:download")
             .apply { setReferenceCounted(false) }
         wifiLock = applicationContext.getSystemService(WifiManager::class.java)
-            .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Alal:download")
+            .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Downloader:download")
             .apply { setReferenceCounted(false) }
         try {
             val notification = notifications.summary(engine.states.value)

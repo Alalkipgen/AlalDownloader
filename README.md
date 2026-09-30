@@ -1,8 +1,8 @@
-# OneDown
+# Downloader
 
-[![Android build](https://github.com/OWNER/REPOSITORY/actions/workflows/android.yml/badge.svg)](https://github.com/OWNER/REPOSITORY/actions/workflows/android.yml)
+[![Android build](https://github.com/Alalkipgen/AlalDownloader/actions/workflows/ci.yml/badge.svg)](https://github.com/Alalkipgen/AlalDownloader/actions/workflows/ci.yml)
 
-Replace `OWNER/REPOSITORY` in the badge with your GitHub repository after publishing; no remote is configured in this checkout. Release artifacts use the requested **Alal Downloader** name, but the current installed app name/package remain **OneDown / app.onedown**. Rebranding is separate work.
+The installed app name is **Downloader**. The existing package ID remains `com.alal.downloader`, so upgrades keep the same Android app identity.
 
 Native Kotlin Android download manager, minSdk 24 and targetSdk 35, using Compose, Coroutines/Flow, OkHttp 4.12.0, Room and Hilt. Gradle Kotlin DSL and version catalog pin dependencies.
 
@@ -13,7 +13,7 @@ Native Kotlin Android download manager, minSdk 24 and targetSdk 35, using Compos
 ```bash
 keytool -genkeypair -v -keystore keystore.jks -alias alal \
   -keyalg RSA -keysize 4096 -validity 10000 \
-  -dname "CN=Alal Downloader,O=Alal,C=US"
+  -dname "CN=Downloader,O=Independent,C=US"
 ```
 
 ### Configure GitHub Secrets
@@ -80,7 +80,7 @@ The debug APK is produced in `app/build/outputs/apk/debug/`; the release APK is 
 
 ## GitHub Actions
 
-The [Android workflow](.github/workflows/android.yml) runs lint, JVM tests, and the debug build on pushes to `main`, pull requests, and `v*` tags. Download artifact **alal-debug** from the successful run. Validation reports are uploaded even if the build fails. Gradle caching is provided by `gradle/actions/setup-gradle`. Superseded runs for the same ref are cancelled.
+The [Android workflow](.github/workflows/android.yml) runs lint, JVM tests, and the debug build on pushes to `main`, pull requests, and `v*` tags. Download artifact **debug-apk** from the successful run. Validation reports are uploaded even if the build fails. Gradle caching is provided by `gradle/actions/setup-gradle`. Superseded runs for the same ref are cancelled.
 
 For an optional API 34 emulator run, use **Actions → Android → Run workflow** and enable **Run API 34 emulator tests**. This invokes `connectedDebugAndroidTest`; there are currently no instrumentation test sources, so it does not yet provide a device acceptance suite.
 
@@ -108,7 +108,7 @@ The release job decodes the keystore into `RUNNER_TEMP`, sets `KEYSTORE_PATH` pl
 
 For a locally signed release, supply `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` through your environment or secret manager, then run `./gradlew assembleRelease`. Relative keystore paths resolve against the repository root. With **none** of the four variables set, release builds deliberately use the debug signing configuration for local testing; **partial** configuration is rejected. Debug-signed APKs are not production releases and cannot update an installation signed with your release key. Never commit keystores or passwords.
 
-Push a version tag such as `v1.2.3` to create a GitHub Release after the build job passes. The release attaches **Alal-Downloader-v1.2.3.apk** and generates release notes automatically. Version tags should start with a digit after `v` and use letters, digits, dots, plus signs, or hyphens. `versionName` is the tag without its leading `v`; `versionCode` is `GITHUB_RUN_NUMBER`. Local defaults are `0.1.0` and `1`. Keep the same signing key and ensure version codes increase for updates; workflow run numbers are scoped to this workflow.
+Push a version tag such as `v1.2.3` to create a GitHub Release after the build job passes. The release attaches **Downloader-v1.2.3.apk** and generates release notes automatically. Version tags should start with a digit after `v` and use letters, digits, dots, plus signs, or hyphens. `versionName` is the tag without its leading `v`; `versionCode` is `GITHUB_RUN_NUMBER`. Local defaults are `0.1.0` and `1`. Keep the same signing key and ensure version codes increase for updates; workflow run numbers are scoped to this workflow.
 
 ## License
 
@@ -116,7 +116,7 @@ Project source: [MIT](LICENSE). Dependency and planned font licensing: [THIRD_PA
 
 ## Debug usage after a successful build
 
-Choose a writable local folder, or use public Download/OneDown on API 29+. On API 24–28, folder selection is required. Use Downloads > Add URLs for one or more HTTP(S) URLs. Existing Phase 1 downloads retain their original paths. Interrupted downloads restore paused after process restart, with invalid segment extents reset; completed, failed and cancelled records retain terminal status.
+Choose a writable local folder, or use public Download/Downloader on API 29+. On API 24–28, folder selection is required. Use Downloads > Add URLs for one or more HTTP(S) URLs. Existing Phase 1 downloads retain their original paths. Interrupted downloads restore paused after process restart, with invalid segment extents reset; completed, failed and cancelled records retain terminal status.
 
 ## Downloads and settings (Phase 4)
 
@@ -133,7 +133,7 @@ All runtime checks are **NOT RUN**: test gestures and accessible buttons; screen
 
 The engine package has no Android or UI imports. Room and Android storage implement its persistence and positional-storage boundaries. SAF uses platform DocumentsContract rather than adding the DocumentFile library. Non-seekable providers are unsupported.
 
-An active engine session runs in a dataSync foreground service with notification controls. Network loss moves work to WAITING_FOR_NETWORK; the service remains foreground but releases the wake lock until an allowed network returns. Wi-Fi only means unmetered connectivity. Manual Pause/Cancel never auto-resumes. Android force-stop cannot be survived; reopen and Resume instead. Android 15's six-hour background dataSync budget applies. Interrupted transfers now restore paused and auto-resume by default, subject to platform start restrictions. Boot and restricted-start recovery use a persisted expedited JobScheduler job (not WorkManager). When background foreground-service startup is rejected, a notification asks the user to open Alal. Background settings provide battery-exemption and OEM autostart shortcuts. See BACKGROUND-VALIDATION.md for limitations and actual validation.
+An active engine session runs in a dataSync foreground service with notification controls. Network loss moves work to WAITING_FOR_NETWORK; the service remains foreground but releases the wake lock until an allowed network returns. Wi-Fi only means unmetered connectivity. Manual Pause/Cancel never auto-resumes. Android force-stop cannot be survived; reopen and Resume instead. Android 15's six-hour background dataSync budget applies. Interrupted transfers now restore paused and auto-resume by default, subject to platform start restrictions. Boot and restricted-start recovery use a persisted expedited JobScheduler job (not WorkManager). When background foreground-service startup is rejected, a notification asks the user to open Downloader. Background settings provide battery-exemption and OEM autostart shortcuts. See BACKGROUND-VALIDATION.md for limitations and actual validation.
 
 ## Built-in browser
 

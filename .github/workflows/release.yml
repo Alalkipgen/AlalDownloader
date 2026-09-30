@@ -104,8 +104,8 @@ jobs:
         run: |
           mkdir -p release-output
           
-          apk_name="AlalDownloader-${VERSION}.apk"
-          aab_name="AlalDownloader-${VERSION}.aab"
+          apk_name="Downloader-${VERSION}.apk"
+          aab_name="Downloader-${VERSION}.aab"
           
           cp app/build/outputs/apk/release/app-release.apk "release-output/$apk_name"
           cp app/build/outputs/bundle/release/app-release.aab "release-output/$aab_name"

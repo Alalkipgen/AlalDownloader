@@ -3,7 +3,7 @@
 ## Implementation and limits
 
 - Engine remains application-scoped; service foreground promotion precedes transfer start.
-- CPU lock: Alal:download, ten-minute timeout, renewed every five minutes; Wi-Fi high-performance lock only during active Wi-Fi transfers.
+- CPU lock: Downloader:download, ten-minute timeout, renewed every five minutes; Wi-Fi high-performance lock only during active Wi-Fi transfers.
 - Existing one-second notification loop retained. Completion Open, expired-link Reopen page, summary Pause all, and Downloads routing added.
 - Restore preserves segment checkpoints; default-on auto-resume excludes manual pauses, cancellations and failures. Wi-Fi-only means validated unmetered connectivity, as before.
 - Room uses insert-ignore/update instead of replace to preserve row ordering. Table schema remains v3.

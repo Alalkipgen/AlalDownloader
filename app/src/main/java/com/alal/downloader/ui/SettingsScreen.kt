@@ -83,7 +83,7 @@ fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, choos
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 item { SettingsGroup("TRANSFERS") { TransferControls(viewModel) { scope.launch { snackbar.showSnackbar("Applied") } } } }
                 item { SettingsGroup("STORAGE") {
-                    SettingsLink("Download location", tree ?: "/storage/emulated/0/Download/Alal", chooseFolder, monospace = true, icon = Icons.Outlined.Folder)
+                    SettingsLink("Download location", tree ?: "/storage/emulated/0/Download/Downloader", chooseFolder, monospace = true, icon = Icons.Outlined.Folder)
                     if (tree != null && Build.VERSION.SDK_INT >= 29) TextButton(onClick = { viewModel.setTree(null) }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Use Downloads folder") }
                 } }
                 item { SettingsGroup("APPEARANCE") { AppearanceControls(theme, viewModel::setTheme, appearance) } }
@@ -115,7 +115,7 @@ fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, choos
                     }, icon = Icons.Outlined.BugReport)
                     SettingsLink("Open-source licenses", "AndroidX \u00b7 Kotlin \u00b7 OkHttp \u00b7 Hilt", { licenses = true }, icon = Icons.Outlined.Policy)
                     SettingsLink("GitHub repository", "Alalkipgen/AlalDownloader", { open("https://github.com/Alalkipgen/AlalDownloader") }, icon = Icons.Outlined.Code)
-                    Text("Alal Downloader ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", Modifier.padding(14.dp),
+                    Text("Downloader ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", Modifier.padding(14.dp),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } }
             }

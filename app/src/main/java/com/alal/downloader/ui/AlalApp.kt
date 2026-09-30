@@ -102,7 +102,7 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     }
     if (backgroundDialog) AlertDialog(
         onDismissRequest = { backgroundDialog = false },
-        title = { Text("Allow Alal to run in background") },
+        title = { Text("Allow Downloader to run in background") },
         text = { Text(viewModel.backgroundAccess.instruction + " Android and OEM limits may still stop long-running downloads.") },
         confirmButton = { TextButton(onClick = { viewModel.backgroundAccess.requestBattery(); backgroundDialog = false }) { Text("Allow background use") } },
         dismissButton = { Row {

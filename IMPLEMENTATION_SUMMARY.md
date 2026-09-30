@@ -1,4 +1,4 @@
-# Alal Downloader - Implementation Summary
+# Downloader - Implementation Summary
 
 ## Completed Features
 

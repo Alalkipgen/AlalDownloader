@@ -45,7 +45,7 @@ class AndroidDownloadStorage @Inject constructor(@ApplicationContext context: Co
                 resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, name)
                     put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Alal")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Downloader")
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 })
             }
@@ -62,7 +62,7 @@ class AndroidDownloadStorage @Inject constructor(@ApplicationContext context: Co
         val uri = if (tree != null) DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
             else if (Build.VERSION.SDK_INT >= 29) MediaStore.Downloads.EXTERNAL_CONTENT_URI else error("Select a folder")
         val selection = if (tree == null) "${MediaStore.MediaColumns.RELATIVE_PATH} = ?" else null
-        val args = if (tree == null) arrayOf(Environment.DIRECTORY_DOWNLOADS + "/Alal/") else null
+        val args = if (tree == null) arrayOf(Environment.DIRECTORY_DOWNLOADS + "/Downloader/") else null
         return resolver.query(uri, arrayOf("_display_name"), selection, args, null)?.use { cursor ->
             buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) }
         } ?: error("Cannot inspect destination for filename collisions")

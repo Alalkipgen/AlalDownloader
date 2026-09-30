@@ -34,7 +34,7 @@
 - Explicit secret validation before build
 - APK signature verification with apksigner
 - Version tag from git refs or manual input
-- Artifact renaming: `AlalDownloader-<version>.apk`
+- Artifact renaming: `Downloader-<version>.apk`
 - Fail-fast error handling (no continue-on-error)
 
 **New Steps:**
@@ -167,7 +167,7 @@ Add in **Settings → Secrets and variables → Actions**:
 ```bash
 keytool -genkeypair -v -keystore keystore.jks -alias alal \
   -keyalg RSA -keysize 4096 -validity 10000 \
-  -dname "CN=Alal Downloader,O=Alal,C=US"
+  -dname "CN=Downloader,O=Independent,C=US"
 ```
 
 ## How to Release
@@ -203,12 +203,12 @@ $ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs \
 
 **Release APK:**
 ```
-AlalDownloader-v1.0.0.apk
+Downloader-v1.0.0.apk
 ```
 
 **Release AAB:**
 ```
-AlalDownloader-v1.0.0.aab
+Downloader-v1.0.0.aab
 ```
 
 Both uploaded to GitHub Releases with auto-generated release notes.

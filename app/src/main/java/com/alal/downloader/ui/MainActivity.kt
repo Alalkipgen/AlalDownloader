@@ -25,7 +25,7 @@ import androidx.compose.runtime.remember
 private val LightScrim = android.graphics.Color.argb(0xE6, 0xFF, 0xFF, 0xFF)
 private val DarkScrim = android.graphics.Color.argb(0x80, 0x1B, 0x1B, 0x1B)
 
-/** Hosts the Alal Compose interface. */
+/** Hosts the Downloader Compose interface. */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var downloadSettings: DownloadSettings

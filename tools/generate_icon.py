@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Alal Downloader launcher icon "Neon Outline": a glowing download arrow inside a neon square.
+"""Downloader launcher icon "Neon Outline": a glowing download arrow inside a neon square.
 
 The mark is stroke-only geometry, so the glow is built by drawing each stroke several
 times with a growing width and a falling alpha. The adaptive background, the adaptive

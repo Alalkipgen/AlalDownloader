@@ -139,7 +139,7 @@ internal fun AddDownloadDialog(downloads: DownloadsViewModel, initialLink: Strin
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Outlined.Folder, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Column(Modifier.weight(1f)) {
-                    Text("Save to: " + (folder?.let(Uri::decode) ?: "Download/Alal"), style = MaterialTheme.typography.bodyMedium,
+                    Text("Save to: " + (folder?.let(Uri::decode) ?: "Download/Downloader"), style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(storage, style = MaterialTheme.typography.bodySmall, maxLines = 1,
                         color = if (lowSpace) Warn else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -168,7 +168,7 @@ internal fun AddDownloadDialog(downloads: DownloadsViewModel, initialLink: Strin
                     Text(reason, Modifier.weight(1f), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     IconButton(onClick = {
                         (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                            .setPrimaryClip(ClipData.newPlainText("Alal error", "${state.link}\n$reason"))
+                            .setPrimaryClip(ClipData.newPlainText("Downloader error", "${state.link}\n$reason"))
                     }) { Icon(Icons.Outlined.ContentCopy, "Copy error") }
                 }
             }

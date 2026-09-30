@@ -164,7 +164,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                                                 "Export list" -> export.launch("alal-downloads.txt")
                                                 "Import list" -> importFile.launch(arrayOf("text/plain"))
                                                 "Settings" -> openSettings()
-                                                else -> message = "Alal Downloader ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+                                                else -> message = "Downloader ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
                                             }
                                         })
                                     }
@@ -225,7 +225,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
             action = { action(item) }, delete = { deletion = setOf(item.id); details = null },
             reopen = { details = null; reopen(item) }, notify = { message = it })
     }
-    message?.let { value -> AlertDialog(onDismissRequest = { message = null }, shape = SettingsShape, title = { Text("Alal Downloader") }, text = { Text(value) }, confirmButton = { TextButton(onClick = { message = null }) { Text("Close") } }) }
+    message?.let { value -> AlertDialog(onDismissRequest = { message = null }, shape = SettingsShape, title = { Text("Downloader") }, text = { Text(value) }, confirmButton = { TextButton(onClick = { message = null }) { Text("Close") } }) }
     if (batch) BatchSheet(viewModel, input) { batch = false }
 }
 
@@ -281,7 +281,7 @@ private fun DrawerContent(downloads: List<DownloadState>, category: String, tree
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BrandBadge(Icons.Outlined.Download, 46.dp)
             Column {
-                Text("Alal Downloader", style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                Text("Downloader", style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -292,7 +292,7 @@ private fun DrawerContent(downloads: List<DownloadState>, category: String, tree
             StorageRing(storage.first, storage.third)
             Column(Modifier.weight(1f)) {
                 Text(storage.second, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(tree ?: "Downloads folder \u00b7 /Download/Alal", style = MaterialTheme.typography.bodySmall,
+                Text(tree ?: "Downloads folder \u00b7 /Download/Downloader", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
