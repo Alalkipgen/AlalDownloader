@@ -64,25 +64,27 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          REQUIRE_RELEASE_SIGNING: "true"
           VERSION_TAG: ${{ inputs.version }}
         run: |
           ./gradlew clean assembleRelease bundleRelease --no-daemon --stacktrace
 
-      - name: Verify APK signature
+      - name: Verify permanent APK signer
+        env:
+          EXPECTED_CERT_SHA256: "f2e9c10c6f3bcab6570c01d7f4702a94e5102d17c5349d58959f03b65a45b165"
         run: |
+          set -euo pipefail
           apk_path="app/build/outputs/apk/release/app-release.apk"
-          if [[ ! -f "$apk_path" ]]; then
-            echo "::error::Release APK not found at $apk_path"
+          test -s "$apk_path" || { echo "::error::Release APK not found at $apk_path"; exit 1; }
+          apksigner="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          signature_output="$("$apksigner" verify --print-certs "$apk_path")"
+          printf '%s\n' "$signature_output"
+          actual_cert_sha256="$(printf '%s\n' "$signature_output" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr '[:upper:]' '[:lower:]')"
+          if [[ "$actual_cert_sha256" != "$EXPECTED_CERT_SHA256" ]]; then
+            echo "::error::Release APK was not signed by the permanent Downloader key"
             exit 1
           fi
-          
-          # Install build-tools if apksigner not available
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs "$apk_path" || {
-            echo "::error::APK signature verification failed"
-            exit 1
-          }
-          
-          echo "✅ APK is properly signed"
+          echo "Permanent release signature verified"
 
       - name: Determine version tag
         id: version

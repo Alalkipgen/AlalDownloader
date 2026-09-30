@@ -24,6 +24,10 @@ val signingEnvironment = mapOf(
     "KEY_PASSWORD" to providers.environmentVariable("KEY_PASSWORD").orNull
 )
 val hasReleaseSigning = signingEnvironment.values.all { !it.isNullOrBlank() }
+val requireReleaseSigning = providers.environmentVariable("REQUIRE_RELEASE_SIGNING").orNull == "true"
+if (requireReleaseSigning && !hasReleaseSigning) {
+    throw GradleException("Permanent release signing credentials are required")
+}
 
 android {
     namespace = "com.alal.downloader"
