@@ -112,7 +112,7 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     )
     BrowserLifecycle(browser) { clipboardUrl = it }
     BackHandler(enabled = destination != "Downloads") {
-        if (destination == "Browser" && browser.active?.webView?.canGoBack() == true) browser.active?.webView?.goBack()
+        if (destination == "Browser" && browser.active?.webView?.canGoBack() == true) browser.back()
         else destination = if (destination == "History") "Browser" else "Downloads"
     }
     LaunchedEffect(destination) {

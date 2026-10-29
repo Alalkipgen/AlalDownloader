@@ -51,6 +51,53 @@ object BrowserPolicy {
         else -> Navigation.LOAD
     }
 
+    /** Registrable site: OkHttp's top private domain, or the host itself when it has none. */
+    fun site(url: String?): String? = url?.toHttpUrlOrNull()?.let { it.topPrivateDomain() ?: it.host }
+
+    fun origin(url: String?): String? = url?.toHttpUrlOrNull()?.newBuilder()?.username("")?.password("")
+        ?.encodedPath("/")?.query(null)?.fragment(null)?.build()?.toString()
+
+    /** The tapped link's or form's resolved address and whether the element was visibly tappable. */
+    data class Tap(val address: String, val form: Boolean, val visible: Boolean)
+
+    /** Invisible: opacity under 0.1 or under 2 px; full-screen overlay: covering 80% or more of the viewport. */
+    fun visible(opacity: Double, width: Double, height: Double, viewportWidth: Double, viewportHeight: Double): Boolean {
+        if (!(opacity >= 0.1) || !(width >= 2) || !(height >= 2) || !(viewportWidth > 0) || !(viewportHeight > 0)) return false
+        return minOf(width, viewportWidth) * minOf(height, viewportHeight) < 0.8 * viewportWidth * viewportHeight
+    }
+
+    /** A link must be the navigation's address (fragment aside); a GET form only its action path, as its fields fill the query. */
+    fun tapped(tap: Tap?, target: String): Boolean {
+        if (tap == null || !tap.visible) return false
+        val address = tap.address.toHttpUrlOrNull()?.newBuilder()?.fragment(null) ?: return false
+        val url = target.toHttpUrlOrNull()?.newBuilder()?.fragment(null) ?: return false
+        if (tap.form) { address.query(null); url.query(null) }
+        return address.build() == url.build()
+    }
+
+    /** Main-frame navigation outcome; USER is a user-started load whose server redirects may follow it. */
+    enum class Guard { LOAD, USER, BLOCK }
+
+    /**
+     * Same-site and user-started navigations load. [page] is the page shown; [redirect] a server redirect, which follows
+     * a user-started chain ([userChain]) or a visible form tap whose POST WebView does not report.
+     */
+    fun guard(page: String?, target: String, redirect: Boolean, gesture: Boolean, userChain: Boolean, tap: Tap?,
+        blockRedirects: Boolean, allowedSites: Set<String>): Guard {
+        val user = if (redirect) userChain || (tap != null && tap.form && tap.visible) else gesture && tapped(tap, target)
+        if (user) return Guard.USER
+        val from = site(page)
+        return if (!blockRedirects || from == null || from == site(target) || from in allowedSites) Guard.LOAD else Guard.BLOCK
+    }
+
+    /** A popup never replaces the page: it opens in a new tab or is blocked. */
+    enum class Popup { TAB, BLOCK }
+
+    fun popup(opener: String?, target: String, gesture: Boolean, blockPopups: Boolean): Popup {
+        val from = site(opener)
+        return if (!blockPopups || (gesture && from != null && from == site(target))) Popup.TAB else Popup.BLOCK
+    }
+
     private val mimeType = Regex("""[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+""")
 
     fun documentType(result: String?): String? {

@@ -8,6 +8,12 @@ class BrowserSettings(context: Context) {
     var blockPopups: Boolean
         get() = preferences.getBoolean("block_popups", true)
         set(value) { preferences.edit().putBoolean("block_popups", value).apply() }
+    var blockRedirects: Boolean
+        get() = preferences.getBoolean("block_redirects", true)
+        set(value) { preferences.edit().putBoolean("block_redirects", value).apply() }
+    var redirectSites: Set<String>
+        get() = preferences.getStringSet("redirect_sites", emptySet()).orEmpty().toSet()
+        set(value) { preferences.edit().putStringSet("redirect_sites", value.toSet()).apply() }
     var desktop: Boolean
         get() = preferences.getBoolean("desktop", false)
         set(value) { preferences.edit().putBoolean("desktop", value).apply() }

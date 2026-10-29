@@ -1,3 +1,11 @@
+# Browser guard, share and tabs — `work/browser-guard`
+
+## Status (2026-10-29)
+
+Branched from `work/browser-file-capture` (6fc51ab, in the owner's phone test; it merges first). Owner-requested: a tap or a page jump must never take the download page away; no ad blocking and no host-specific code. CI (`ci.yml`) on the branch is the build/test record; phone test is **NOT RUN**.
+
+- Popups and redirects never take the page away. Pure `BrowserPolicy.popup()` and `BrowserPolicy.guard()` decide (same site = OkHttp `topPrivateDomain()`, else the host). Popups (`onCreateWindow`) never load in the current tab: Block popups on, a same-site popup from a tap opens in a new tab in front and others are blocked; off, all open in new tabs. WebView now always offers popups (`javaScriptCanOpenWindowsAutomatically`) so a blocked one can name its host; at most four wait for an address at once (the oldest is dropped). A popup tab whose first load is a file hands the capture to its opener tab and closes. A tap is consumed only by the navigation it matches, so an ad's jump on the same tap does not spend it. Block redirects (new, default on): a main-frame navigation to another site loads only if app-started (URL bar, Home, history, Back/Forward/Reload, Reopen page, a bar's Open) or a gesture tap on a visible link/form button whose address it is, plus the server redirects after it; script, timer, meta-refresh and overlay-tap jumps are blocked and the page stays. `TapRecorder` (`AlalTap`, per-page key replaced on every commit) sends only the tapped address and opacity/size against the viewport. One bar at a time ("Popup blocked: <host>" / "Blocked a redirect to <host>", Open, Allow on <site>) replaces the old toast; Settings and Browser settings list allowed sites. File arrivals, the refresh tab and Reopen page are never blocked. JUnit covers subdomain and Drive→usercontent loads, a tap's cross-site popup, script/overlay redirects, a tapped link and its redirects, allowed sites and each setting off.
+
 # Browser file capture — `work/browser-file-capture`
 
 ## Status (2026-10-29)
@@ -49,7 +57,7 @@ Source implemented; **awaiting compilation, JUnit execution and device acceptanc
 
 ### Remaining Phase 3 limitations
 
-Activity recreation resets tabs and interrupts page saves; browser state is not a persistent browsing history. Blob sources confined to cross-origin frames may not be fetchable from the top page. Bridge is installed before navigation (Android exposes new JS interfaces on next page load), but rejects every write without an approved page/session token. Same-page scripts inherently control blob contents. User-initiated popup forwarding is heuristic; complex window.opener and POST flows may not work. Provider deletion/process-death cleanup is best-effort. Media candidates do not assemble adaptive streams. Existing engine redirect header forwarding can disclose captured credentials to redirect hosts; trust the source. No claim of Phase 3 completion until build and device gates pass.
+Activity recreation resets tabs and interrupts page saves; browser state is not a persistent browsing history. Blob sources confined to cross-origin frames may not be fetchable from the top page. Bridge is installed before navigation (Android exposes new JS interfaces on next page load), but rejects every write without an approved page/session token. Same-page scripts inherently control blob contents. Popups no longer replace the page: same-site tap popups open in a new tab with the popup's URL (window.opener flows may not work) and others are blocked behind a bar; POST form navigations are not seen by the redirect guard. Provider deletion/process-death cleanup is best-effort. Media candidates do not assemble adaptive streams. Existing engine redirect header forwarding can disclose captured credentials to redirect hosts; trust the source. No claim of Phase 3 completion until build and device gates pass.
 
 # Historical Phase 2 checkpoint
 

@@ -41,7 +41,7 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
                     onNavigate = { stopped = false; session.navigate(it) },
                     modifier = Modifier.weight(1f),
                     trailingContent = {
-                        IconButton(onClick = { if (loading) { tab?.webView?.stopLoading(); stopped = true } else { stopped = false; tab?.webView?.reload() } }, modifier = Modifier.size(30.dp)) {
+                        IconButton(onClick = { if (loading) { tab?.webView?.stopLoading(); stopped = true } else { stopped = false; session.reload() } }, modifier = Modifier.size(30.dp)) {
                             Icon(if (loading) Icons.Outlined.Stop else Icons.Outlined.Refresh, if (loading) "Stop loading" else "Reload", Modifier.size(18.dp))
                         }
                     },
@@ -52,8 +52,8 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
             BrowserLoadingProgress(loading, progress)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            ChromeButton(Icons.Outlined.ArrowBack, "Back", enabled = tab?.back == true) { tab?.webView?.goBack() }
-            ChromeButton(Icons.Outlined.ArrowForward, "Forward", enabled = tab?.forward == true) { tab?.webView?.goForward() }
+            ChromeButton(Icons.Outlined.ArrowBack, "Back", enabled = tab?.back == true) { session.back() }
+            ChromeButton(Icons.Outlined.ArrowForward, "Forward", enabled = tab?.forward == true) { session.forward() }
             ChromeButton(Icons.Outlined.Home, "Home") { stopped = false; focus.clearFocus(); session.navigate(BrowserPolicy.HOME) }
             Spacer(Modifier.weight(1f))
             ChromeButton(Icons.Outlined.Tab, "Tabs", count = session.tabs.size, click = tabs)

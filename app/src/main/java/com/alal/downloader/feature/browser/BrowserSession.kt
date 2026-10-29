@@ -32,6 +32,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -61,7 +62,16 @@ class BrowserTab(val id: String, val webView: WebView) {
     internal var navigation = 0
     internal var inspected = -1
     internal val offered = LinkedHashSet<String>()
+    internal var userChain = false
+    internal var openerId: String? = null
+    internal var committed = false
+    @Volatile internal var tapKey = ""
+    @Volatile internal var tap: RecordedTap? = null
 }
+
+/** The single guard bar: a blocked popup (Open in a new tab) or a blocked redirect (Open here, Allow on its site). */
+data class GuardNotice(val tabId: String, val url: String, val host: String, val site: String?, val referer: String?,
+    val popup: Boolean)
 
 /** Activity-owned WebViews; never stores an Activity inside a ViewModel. */
 class BrowserSession(private val context: Context, private val probe: suspend (DownloadRequest) -> ProbeResult) {
@@ -74,6 +84,12 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
     private var refreshTabId: String? = null
     var directProgress by mutableStateOf<String?>(null)
     var blockPopups by mutableStateOf(settings.blockPopups)
+        private set
+    var blockRedirects by mutableStateOf(settings.blockRedirects)
+        private set
+    var redirectSites by mutableStateOf(settings.redirectSites)
+        private set
+    var notice by mutableStateOf<GuardNotice?>(null)
     var desktop by mutableStateOf(settings.desktop)
     var clipboardEnabled by mutableStateOf(settings.clipboard)
     var mediaEnabled by mutableStateOf(settings.media)
@@ -88,6 +104,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
     init {
         Log.d("Browser", "session init tabs=${tabs.size}")
         ensureActiveTab()
+        scope.launch(Dispatchers.Default) { BrowserPolicy.site(BrowserPolicy.HOME) }
     }
 
     fun ensureActiveTab(): BrowserTab {
@@ -95,13 +112,15 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         return active ?: tabs.firstOrNull()?.also { selected = it.id } ?: newTab()
     }
 
-    fun newTab(url: String = BrowserPolicy.HOME): BrowserTab {
+    fun newTab(url: String = BrowserPolicy.HOME, referer: String? = null, opener: BrowserTab? = null): BrowserTab {
         check(!closed) { "Browser session has been disposed" }
         val tab = createTab()
+        tab.openerId = opener?.id
         tabs.add(tab)
         selected = tab.id
         Log.d("Browser", "newTab tabs=${tabs.size} active=${tab.id}")
-        navigate(url)
+        val address = if (opener != null) url else BrowserPolicy.address(url)
+        if (!route(tab, address)) load(tab, address, referer)
         return tab
     }
 
@@ -109,12 +128,20 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         val tab = tabs.find { it.id == id } ?: return
         if (capture?.tabId == id) capture = null
         writer.cancel()
+        discard(tab)
+    }
+
+    private fun discard(tab: BrowserTab) {
+        if (tab !in tabs) return
+        if (capture?.tabId == tab.id) capture = null
+        if (notice?.tabId == tab.id) notice = null
         tabs.remove(tab)
         tab.webView.stopLoading()
         tab.webView.removeJavascriptInterface("AlalBlob")
+        tab.webView.removeJavascriptInterface(TapRecorder.NAME)
         (tab.webView.parent as? android.view.ViewGroup)?.removeView(tab.webView)
         tab.webView.destroy()
-        if (tabs.isEmpty()) newTab() else if (selected == id) selected = tabs.last().id
+        if (tabs.isEmpty()) newTab() else if (selected == tab.id) selected = tabs.last().id
     }
 
     fun navigate(input: String) {
@@ -124,11 +151,43 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         if (!route(tab, url)) load(tab, url)
     }
 
-    private fun load(tab: BrowserTab, url: String) {
+    /** App-started loads (URL bar, tabs, Reopen page, a bar's Open) are user-started: their server redirects follow. */
+    private fun load(tab: BrowserTab, url: String, referer: String? = null) {
         tab.error = null
+        tab.userChain = true
         Log.d("Browser", "loadUrl on ${System.identityHashCode(tab.webView)} host=${url.toHttpUrlOrNull()?.host}")
-        tab.webView.loadUrl(url)
+        if (referer == null) tab.webView.loadUrl(url) else tab.webView.loadUrl(url, mapOf("Referer" to referer))
     }
+
+    fun back() { active?.takeIf { it.webView.canGoBack() }?.let { it.userChain = true; it.webView.goBack() } }
+
+    fun forward() { active?.takeIf { it.webView.canGoForward() }?.let { it.userChain = true; it.webView.goForward() } }
+
+    fun reload() { active?.let { it.error = null; it.userChain = true; it.webView.reload() } }
+
+    fun openBlocked() {
+        val blocked = notice ?: return
+        notice = null
+        val tab = tabs.find { it.id == blocked.tabId }
+        if (blocked.popup) { newTab(blocked.url, blocked.referer, tab); return }
+        if (tab == null) return
+        selected = tab.id
+        load(tab, blocked.url, blocked.referer)
+    }
+
+    fun allowBlocked() {
+        val blocked = notice ?: return
+        notice = null
+        blocked.site?.let(::allowSite)
+    }
+
+    fun allowSite(site: String) { redirectSites = redirectSites + site; settings.redirectSites = redirectSites }
+
+    fun removeSite(site: String) { redirectSites = redirectSites - site; settings.redirectSites = redirectSites }
+
+    fun setPopupBlocking(value: Boolean) { blockPopups = value; settings.blockPopups = value }
+
+    fun setRedirectBlocking(value: Boolean) { blockRedirects = value; settings.blockRedirects = value }
 
     fun retry(tab: BrowserTab) {
         require(tab in tabs)
@@ -157,7 +216,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         desktop = value
         settings.desktop = value
         tabs.forEach { it.webView.settings.userAgentString = userAgent(value) }
-        active?.webView?.reload()
+        reload()
     }
 
     fun pause() {
@@ -178,6 +237,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         tabs.forEach {
             (it.webView.parent as? android.view.ViewGroup)?.removeView(it.webView)
             it.webView.removeJavascriptInterface("AlalBlob")
+            it.webView.removeJavascriptInterface(TapRecorder.NAME)
             it.webView.stopLoading()
             it.webView.destroy()
         }
@@ -209,7 +269,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             setSupportMultipleWindows(true)
-            javaScriptCanOpenWindowsAutomatically = !blockPopups
+            javaScriptCanOpenWindowsAutomatically = true
             userAgentString = userAgent(desktop)
             allowFileAccess = false
             allowContentAccess = false
@@ -220,8 +280,12 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         }
         CookieManager.getInstance().apply { setAcceptCookie(true); setAcceptThirdPartyCookies(view, true) }
         view.addJavascriptInterface(writer.bridge(view), "AlalBlob")
+        view.addJavascriptInterface(TapRecorder(tab), TapRecorder.NAME)
         view.setDownloadListener { url, ua, disposition, mime, length ->
-            captureDownload(tab, url, ua, disposition, mime, length, listener = true)
+            tab.userChain = false
+            val opener = tab.openerId?.takeIf { !tab.committed }?.let { id -> tabs.find { it.id == id } }
+            captureDownload(opener ?: tab, url, ua, disposition, mime, length, listener = true)
+            if (opener != null) { selected = opener.id; scope.launch(Dispatchers.Main) { discard(tab) } }
         }
         view.setOnLongClickListener {
             val hit = view.hitTestResult
@@ -231,14 +295,22 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
             } else false
         }
         view.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                if (request.isForMainFrame) route(tab, request.url.toString())
-                else request.url.scheme !in setOf("http", "https", "about")
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                if (!request.isForMainFrame) return request.url.scheme !in setOf("http", "https", "about")
+                val url = request.url.toString()
+                return route(tab, url) || !guard(tab, view.url, url, request.isRedirect, request.hasGesture())
+            }
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 Log.d("Browser", "onPageStarted webView=${System.identityHashCode(view)} host=${url?.toHttpUrlOrNull()?.host}")
                 tab.navigation++
                 tab.error = null
+                tab.committed = true
+                tab.userChain = false
+                tab.tap = null
+                tab.tapKey = UUID.randomUUID().toString()
+                if (notice?.tabId == tab.id) notice = null
+                recordTaps(tab)
                 writer.navigation(view)
                 tab.media.clear()
                 if (capture?.tabId == tab.id && capture?.url?.startsWith("blob:") == true) capture = null
@@ -252,10 +324,11 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
                 tab.url = url ?: tab.url
                 tab.finishedLoads++
                 Log.d("Browser", "onPageFinished webView=${System.identityHashCode(view)}")
+                recordTaps(tab)
                 inspectDocument(tab)
             }
 
-            override fun onPageCommitVisible(view: WebView, url: String?) { inspectDocument(tab) }
+            override fun onPageCommitVisible(view: WebView, url: String?) { recordTaps(tab); inspectDocument(tab) }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (request.isForMainFrame) {
@@ -295,25 +368,36 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
             override fun onReceivedTitle(view: WebView, title: String?) { tab.title = title ?: "Tab" }
 
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
-                if (blockPopups && (!isUserGesture || isDialog)) { toast("Popup blocked"); return false }
                 val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
+                if (closed) return false
+                if (popups.size >= MAX_POPUPS) popups.first().let { popups.remove(it); it.stopLoading(); it.destroy() }
+                val opener = view.url
                 val popup = WebView(context)
                 popups.add(popup)
-                var routed = false
-                fun forward(url: String): Boolean {
-                    if (routed || url == "about:blank") return false
-                    routed = true
-                    if (!route(tab, url)) load(tab, url)
-                    popup.post { popups.remove(popup); popup.stopLoading(); popup.destroy() }
+                var decided = false
+                fun dismiss() { if (popups.remove(popup)) { popup.stopLoading(); popup.destroy() } }
+                fun decide(url: String): Boolean {
+                    if (decided || url == "about:blank") return false
+                    decided = true
+                    scope.launch(Dispatchers.Main) { dismiss() }
+                    if (closed || tab !in tabs) return true
+                    val navigation = BrowserPolicy.navigation(url)
+                    when {
+                        navigation == BrowserPolicy.Navigation.CAPTURE -> captureLink(tab.id, url)
+                        navigation != BrowserPolicy.Navigation.LOAD -> if (!blockPopups || isUserGesture) route(tab, url)
+                        BrowserPolicy.popup(opener, url, isUserGesture, blockPopups) == BrowserPolicy.Popup.TAB ->
+                            newTab(url, BrowserPolicy.origin(opener), tab)
+                        else -> block(tab, opener, url, popup = true)
+                    }
                     return true
                 }
                 popup.webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = forward(request.url.toString())
-                    override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) { url?.let { forward(it) } }
+                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = decide(request.url.toString())
+                    override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) { url?.let { decide(it) } }
                 }
                 transport.webView = popup
                 resultMsg.sendToTarget()
-                view.postDelayed({ if (popups.remove(popup)) { popup.stopLoading(); popup.destroy() } }, 15_000)
+                scope.launch(Dispatchers.Main) { delay(POPUP_WAIT_MS); dismiss() }
                 return true
             }
         }
@@ -324,6 +408,27 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         tab.webView.url?.let { tab.url = it }
         tab.back = tab.webView.canGoBack()
         tab.forward = tab.webView.canGoForward()
+    }
+
+    /** True when the main-frame navigation may load; a blocked one keeps the page and shows the bar. */
+    private fun guard(tab: BrowserTab, page: String?, url: String, redirect: Boolean, gesture: Boolean): Boolean {
+        val decision = BrowserPolicy.guard(page, url, redirect, gesture, tab.userChain, tab.tap?.fresh(), blockRedirects, redirectSites)
+        when (decision) {
+            BrowserPolicy.Guard.USER -> { tab.tap = null; tab.userChain = true }
+            BrowserPolicy.Guard.LOAD -> if (!redirect) tab.userChain = false
+            BrowserPolicy.Guard.BLOCK -> block(tab, page, url, popup = false)
+        }
+        return decision != BrowserPolicy.Guard.BLOCK
+    }
+
+    private fun block(tab: BrowserTab, page: String?, url: String, popup: Boolean) {
+        val host = url.toHttpUrlOrNull()?.host ?: return
+        notice = GuardNotice(tab.id, url, host, BrowserPolicy.site(page), BrowserPolicy.origin(page), popup)
+    }
+
+    private fun recordTaps(tab: BrowserTab) {
+        if (closed || tab.tapKey.isEmpty() || tab.webView.url?.toHttpUrlOrNull() == null) return
+        tab.webView.evaluateJavascript(TapRecorder.script(tab.tapKey), null)
     }
 
     private fun route(tab: BrowserTab, url: String): Boolean = when (BrowserPolicy.navigation(url)) {
@@ -363,7 +468,8 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
     private fun offer(candidate: BrowserCapture, listener: Boolean): Boolean {
         var next = candidate
         val target = refresh
-        if (listener && target != null && refreshTabId == next.tabId && next.url.toHttpUrlOrNull() != null &&
+        val source = generateSequence(tabs.find { it.id == next.tabId }) { child -> tabs.find { it.id == child.openerId } }.take(8)
+        if (listener && target != null && source.any { it.id == refreshTabId } && next.url.toHttpUrlOrNull() != null &&
             BrowserPolicy.matches(target, next.fileName, next.size)) {
             next = next.copy(refreshId = target.id, fileName = target.fileName)
         }
@@ -418,6 +524,8 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
     private fun toast(message: String) { Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
 
     private companion object {
+        const val MAX_POPUPS = 4
+        const val POPUP_WAIT_MS = 15_000L
         const val PAUSE_MEDIA = "document.querySelectorAll('video,audio').forEach(function(m){m.pause()})"
         const val STOP_MEDIA = "document.querySelectorAll('video,audio').forEach(function(m){m.pause();m.removeAttribute('src');" +
             "m.querySelectorAll('source').forEach(function(s){s.remove()});m.load()})"
