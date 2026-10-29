@@ -26,6 +26,7 @@ class DownloadEngine(
     private var segmentCount: Int = 8,
     private val connectionsPerDownload: Int = 8,
     private val storage: DownloadStorage = FileDownloadStorage(),
+    private val cookies: CookieSource = CookieSource.None,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gate = Mutex()
@@ -234,7 +235,7 @@ class DownloadEngine(
                     return@launch
                 }
                 DownloadTask(state, client, store, state.request.segmentCount ?: segmentCount,
-                    connectionsPerDownload, ::publish, storage, limiter).run()
+                    connectionsPerDownload, ::publish, storage, limiter, cookies).run()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {

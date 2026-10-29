@@ -1,6 +1,7 @@
 package com.alal.downloader.ui
 
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -32,6 +33,7 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     val screenState = rememberSaveableStateHolder()
     var clipboardUrl by remember { mutableStateOf<String?>(null) }
     var addLink by rememberSaveable { mutableStateOf<String?>(null) }
+    var sharedLinks by remember { mutableStateOf<String?>(null) }
     val error by viewModel.error.collectAsStateWithLifecycle()
     val message by browserViewModel.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -72,10 +74,15 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     }
     LaunchedEffect(notificationIntent) {
         if (notificationIntent?.action == android.content.Intent.ACTION_SEND) {
-            val shared = notificationIntent.getStringExtra(android.content.Intent.EXTRA_TEXT).orEmpty()
-            addLink = Regex("(?:https?://|magnet:\\?)[^\\s<>\"]+", RegexOption.IGNORE_CASE).find(shared)?.value ?: shared.trim()
+            val links = com.alal.downloader.feature.browser.SharedLinks.extract(
+                notificationIntent.getCharSequenceExtra(android.content.Intent.EXTRA_TEXT)?.toString())
             notificationIntent.removeExtra(android.content.Intent.EXTRA_TEXT)
             notificationIntent.action = null
+            when (links.size) {
+                0 -> launch { snackbar.showSnackbar("No link in the shared text") }
+                1 -> { browser.newTab(links.single()); destination = "Browser" }
+                else -> { sharedLinks = links.joinToString("\n"); destination = "Downloads" }
+            }
         }
         if (notificationIntent?.getBooleanExtra("downloads", false) == true) destination = "Downloads"
         val openId = notificationIntent?.getStringExtra("open_download")
@@ -112,7 +119,7 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
     )
     BrowserLifecycle(browser) { clipboardUrl = it }
     BackHandler(enabled = destination != "Downloads") {
-        if (destination == "Browser" && browser.active?.webView?.canGoBack() == true) browser.active?.webView?.goBack()
+        if (destination == "Browser" && browser.active?.webView?.canGoBack() == true) browser.back()
         else destination = if (destination == "History") "Browser" else "Downloads"
     }
     LaunchedEffect(destination) {
@@ -156,7 +163,7 @@ internal fun AlalApp(viewModel: DownloadsViewModel, browserViewModel: BrowserVie
                         destination = "Browser"
                     }, content, { folder.launch(null) },
                         openBrowser = { tick(); destination = "Browser" }, openSettings = { tick(); destination = "Settings" },
-                        addLink = { addLink = it })
+                        addLink = { addLink = it }, shared = sharedLinks, sharedShown = { sharedLinks = null })
                     else -> SettingsScreen(viewModel, browser, { folder.launch(null) }, content.navigationBarsPadding(), { backgroundDialog = true },
                         navigateBack = { tick(); destination = "Downloads" })
                 }

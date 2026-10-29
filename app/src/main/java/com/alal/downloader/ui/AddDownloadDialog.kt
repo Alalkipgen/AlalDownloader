@@ -1,5 +1,6 @@
 package com.alal.downloader.ui
 
+import com.alal.downloader.core.engine.ByteFormat
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -8,7 +9,6 @@ import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
 import android.provider.DocumentsContract
-import android.text.format.Formatter
 import android.webkit.WebSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,7 +79,7 @@ internal fun AddDownloadDialog(downloads: DownloadsViewModel, initialLink: Strin
                 val stat = StatFs(root.absolutePath)
                 val free = stat.availableBytes
                 val total = stat.totalBytes
-                "${Formatter.formatFileSize(context, free)} free of ${Formatter.formatFileSize(context, total)}" to (free < 500L * 1024 * 1024)
+                "${ByteFormat.size(free)} free of ${ByteFormat.size(total)}" to (free < 500L * 1024 * 1024)
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (failure: Exception) { (failure.message ?: "Storage information unavailable") to false }
         }
@@ -123,7 +123,7 @@ internal fun AddDownloadDialog(downloads: DownloadsViewModel, initialLink: Strin
                 FileTypeTile(fileName)
                 Column(Modifier.weight(1f)) {
                     Text(fileName, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val size = state.size?.let { if (it < 0) "unknown size" else Formatter.formatFileSize(context, it) } ?: "size unknown"
+                    val size = state.size?.let { if (it < 0) "unknown size" else ByteFormat.size(it) } ?: "size unknown"
                     val resume = state.resume?.let { if (it) "supports resume" else "no resume" } ?: "resume unknown"
                     Text("$size \u00b7 $resume", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)

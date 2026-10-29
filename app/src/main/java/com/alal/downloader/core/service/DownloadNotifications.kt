@@ -1,5 +1,6 @@
 package com.alal.downloader.core.service
 
+import com.alal.downloader.core.engine.ByteFormat
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -76,7 +77,7 @@ class DownloadNotifications @Inject constructor(@ApplicationContext private val 
         val percent = if (total > 0) (done / total * 100).toInt().coerceIn(0, 100) else 0
         val waiting = active.isNotEmpty() && active.all { it.status in setOf(DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI) }
         val notification = builder(PROGRESS).setContentTitle("Downloader · ${active.size} downloads")
-            .setContentText("${active.count { it.status == DownloadStatus.RUNNING }} downloading · ${active.count { it.status != DownloadStatus.RUNNING }} waiting · ${active.sumOf { it.speedBytesPerSecond } / 1024} KiB/s")
+            .setContentText("${active.count { it.status == DownloadStatus.RUNNING }} downloading · ${active.count { it.status != DownloadStatus.RUNNING }} waiting · ${ByteFormat.speed(active.sumOf { it.speedBytesPerSecond })}")
             .addAction(action("all", "pause_all", "Pause all"))
             .setProgress(100, percent, unknown && !waiting)
             .setOngoing(true).setGroupSummary(true)
@@ -98,7 +99,7 @@ class DownloadNotifications @Inject constructor(@ApplicationContext private val 
                 notification.setSmallIcon(android.R.drawable.stat_sys_download_done).setContentText("Download complete")
                     .addAction(activityAction(state.id, "open_download", "Open"))
             } else {
-                notification.setContentText("${if (state.totalBytes >= 0) "$percent%" else "Unknown size"} · ${state.speedBytesPerSecond / 1024} KiB/s · ${state.status}")
+                notification.setContentText("${if (state.totalBytes >= 0) "$percent%" else "Unknown size"} · ${ByteFormat.speed(state.speedBytesPerSecond)} · ${state.status}")
                     .setProgress(100, percent, state.totalBytes < 0 && state.status == DownloadStatus.RUNNING)
                 if (state.status in setOf(DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.WAITING_FOR_NETWORK, DownloadStatus.WAITING_FOR_WIFI)) {
                     notification.addAction(action(state.id, "pause", "Pause"))

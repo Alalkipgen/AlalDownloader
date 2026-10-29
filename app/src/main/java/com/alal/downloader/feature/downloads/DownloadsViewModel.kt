@@ -33,11 +33,12 @@ class DownloadsViewModel @Inject constructor(
     private val coordinator: DownloadCoordinator,
     private val intake: com.alal.downloader.core.service.DownloadIntake,
     client: okhttp3.OkHttpClient,
+    cookies: com.alal.downloader.core.engine.CookieSource,
     private val settings: DownloadSettings,
     val backgroundAccess: com.alal.downloader.core.service.BackgroundAccess,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
-    val prober = DownloadProber { com.alal.downloader.core.engine.RangeProbe(client).probe(it) }
+    val prober = DownloadProber { com.alal.downloader.core.engine.RangeProbe(client, cookies).probe(it) }
 
     suspend fun addFile(url: String, referrer: String, name: String, extension: String, wifi: Boolean, retry: Boolean, agent: String) = withContext(Dispatchers.IO) {
         val normalized = com.alal.downloader.core.engine.FilenameResolver.normalizeUrl(url)
@@ -133,7 +134,7 @@ class DownloadsViewModel @Inject constructor(
                 currentCoroutineContext().ensureActive()
                 val read = stream.read(buffer)
                 if (read < 0) break
-                require(output.size() + read <= DownloadPresentation.MAX_INPUT) { "Text file exceeds 1 MiB" }
+                require(output.size() + read <= DownloadPresentation.MAX_INPUT) { "Text file exceeds 1 MB" }
                 output.write(buffer, 0, read)
             }
             Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(output.toByteArray())).toString()

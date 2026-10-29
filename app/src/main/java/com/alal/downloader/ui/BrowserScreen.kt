@@ -1,5 +1,6 @@
 package com.alal.downloader.feature.browser
 
+import com.alal.downloader.core.engine.ByteFormat
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -91,6 +93,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
     var showMore by remember { mutableStateOf(false) }
     var showFind by remember { mutableStateOf(false) }
     var showExternal by remember { mutableStateOf(false) }
+    var showBookmarks by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val history = remember(context) { context.historyRepository() }
     val incognito by history.incognito.collectAsStateWithLifecycle()
@@ -121,6 +124,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
             Text(it, Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { session.writer.cancel(); session.directProgress = null }) { Text("Cancel / dismiss save") }
         }
+        session.notice?.takeIf { it.tabId == tab?.id }?.let { GuardBar(session, it) }
         
         if (tab != null) {
             Box(Modifier.fillMaxWidth().weight(1f)) {
@@ -164,7 +168,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
                             }
                             TextButton(onClick = {
                                 session.active?.webView?.onPause()
-                                session.selected = item.id
+                                session.select(item.id)
                                 session.resume()
                                 showTabs = false
                             }) { Text(item.title, maxLines = 2) }
@@ -181,7 +185,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
     }
     if (showMore) ModalBottomSheet(onDismissRequest = { showMore = false }) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
-            listOf("New tab", "Add link to queue", "Open magnet/torrent", "Find in page", "Share page", "History", "Browser settings", "Manage open tabs").forEach { label ->
+            listOf("New tab", "Add link to queue", "Open magnet/torrent", "Find in page", "Share page", "History", "Bookmarks", "Browser settings", "Manage open tabs").forEach { label ->
                 TextButton(onClick = {
                     showMore = false
                     when (label) {
@@ -193,6 +197,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
                             .onFailure { android.widget.Toast.makeText(context, "No sharing app available", android.widget.Toast.LENGTH_SHORT).show() }
                         "Browser settings" -> showSettings = true
                         "History" -> openHistory()
+                        "Bookmarks" -> showBookmarks = true
                         else -> showTabs = true
                     }
                 }, modifier = Modifier.fillMaxWidth()) {
@@ -201,6 +206,24 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
                 }
             }
             SettingSwitch("Desktop mode", session.desktop, session::setDesktopMode)
+        }
+    }
+    if (showBookmarks) ModalBottomSheet(onDismissRequest = { showBookmarks = false }) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Text("Bookmarks", style = MaterialTheme.typography.titleLarge)
+            if (session.bookmarks.isEmpty()) Text("No bookmarks yet. Tap the star to add the current page.", Modifier.padding(vertical = 12.dp))
+            session.bookmarks.forEach { page ->
+                val host = page.url.toHttpUrlOrNull()?.host.orEmpty()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { showBookmarks = false; session.navigate(page.url) }, modifier = Modifier.weight(1f)) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text(page.title.ifBlank { host }, maxLines = 2)
+                            Text(host, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    IconButton(onClick = { session.removeBookmark(page.url) }) { Icon(Icons.Filled.Delete, "Delete bookmark") }
+                }
+            }
         }
     }
     if (showFind) {
@@ -233,10 +256,9 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
         Column(Modifier.verticalScroll(rememberScrollState())) {
             SettingSwitch("Incognito", incognito, history::setIncognito)
             Text("Incognito prevents history recording. Cookies and website storage are unchanged.")
-            SettingSwitch("Block obvious popups", session.blockPopups) { value ->
-                session.blockPopups = value; session.settings.blockPopups = value
-                session.tabs.forEach { it.webView.settings.javaScriptCanOpenWindowsAutomatically = !value }
-            }
+            SettingSwitch("Block popups", session.blockPopups, session::setPopupBlocking)
+            SettingSwitch("Block redirects", session.blockRedirects, session::setRedirectBlocking)
+            RedirectSites(session)
             SettingSwitch("Desktop mode", session.desktop, session::setDesktopMode)
             SettingSwitch("Clipboard suggestions", session.clipboardEnabled) { session.clipboardEnabled = it; session.settings.clipboard = it }
             SettingSwitch("Media candidates (URL based)", session.mediaEnabled) { session.mediaEnabled = it; session.settings.media = it }
@@ -252,7 +274,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(media.fileName)
-                        Text("${media.mimeType ?: media.fileName.substringAfterLast('.', "Unknown type")} · ${if (media.size >= 0) "${media.size} bytes" else "Size unknown"}", style = MaterialTheme.typography.bodySmall)
+                        Text("${media.mimeType ?: media.fileName.substringAfterLast('.', "Unknown type")} · ${if (media.size >= 0) ByteFormat.size(media.size) else "Size unknown"}", style = MaterialTheme.typography.bodySmall)
                     }
                     TextButton(onClick = { if (session.capture == null) session.capture = media; showMedia = false }) { Text("Download") }
                 }
@@ -263,6 +285,39 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
         AlertDialog(onDismissRequest = { session.linkMenu = null }, title = { Text("Link") }, text = { Text(url, maxLines = 5) },
             confirmButton = { TextButton(onClick = { session.captureLink(id, url); session.linkMenu = null }) { Text("Download link") } },
             dismissButton = { TextButton(onClick = { session.copyLink(url); session.linkMenu = null }) { Text("Copy link") } })
+    }
+}
+
+@Composable
+private fun GuardBar(session: BrowserSession, notice: GuardNotice) {
+    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.secondaryContainer) {
+        Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(if (notice.popup) "Popup blocked: ${notice.host}" else "Blocked a redirect to ${notice.host}",
+                    Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodySmall, maxLines = 2,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                    TextButton(onClick = session::openBlocked) { Text("Open") }
+                    if (!notice.popup && notice.site != null) TextButton(onClick = session::allowBlocked) { Text("Allow on ${notice.site}") }
+                }
+            }
+            IconButton(onClick = { session.notice = null }) { Icon(Icons.Filled.Close, "Dismiss") }
+        }
+    }
+}
+
+/** Sites whose pages may redirect to other sites; each can be removed. */
+@Composable
+fun RedirectSites(session: BrowserSession, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        val sites = session.redirectSites.sorted()
+        Text(if (sites.isEmpty()) "No sites are allowed to redirect." else "Redirects allowed on:", style = MaterialTheme.typography.bodySmall)
+        sites.forEach { site ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(site, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                IconButton(onClick = { session.removeSite(site) }) { Icon(Icons.Filled.Close, "Remove $site") }
+            }
+        }
     }
 }
 
@@ -289,7 +344,7 @@ fun BrowserConfirmation(session: BrowserSession, viewModel: BrowserViewModel, ch
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(if (capture.refreshId == null) "Confirm download" else "Replace expired link", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(name, { name = it }, label = { Text("Filename") }, enabled = capture.refreshId == null && !submitting, modifier = Modifier.fillMaxWidth())
-            Text(if (capture.size >= 0) "Size: ${capture.size} bytes" else "Size: unknown")
+            Text(if (capture.size >= 0) "Size: ${ByteFormat.size(capture.size)}" else "Size: unknown")
             if (capture.refreshId == null) {
                 Text("Target: ${tree ?: if (Build.VERSION.SDK_INT >= 29) "Download/Downloader" else "Select a folder"}")
                 Row {
@@ -300,6 +355,7 @@ fun BrowserConfirmation(session: BrowserSession, viewModel: BrowserViewModel, ch
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !submitting)
             } else Text("Keep existing destination and checkpoints. Changed or unverifiable content restarts safely.")
             if (direct) Text("Single-threaded page save. Keep this page open; this transfer cannot resume after process death.")
+            if (capture.document) Text("The browser opened this file itself; page playback is paused.")
             saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(enabled = !submitting && name.isNotBlank() && (direct || (segments.toIntOrNull() ?: 0) in 1..32), onClick = {
                 try {
@@ -307,7 +363,7 @@ fun BrowserConfirmation(session: BrowserSession, viewModel: BrowserViewModel, ch
                         val tab = session.tabs.find { it.id == capture.tabId } ?: error("Source tab closed")
                         session.writer.start(tab.webView, viewModel.request(capture, name, 1))
                         session.capture = null
-                    } else viewModel.submit(capture, name, segments.toInt(), { session.refresh = null }, { session.capture = null })
+                    } else viewModel.submit(capture, name, segments.toInt(), { session.refresh = null }, { session.submitted(capture) })
                 } catch (failure: Exception) { saveError = failure.message }
             }) { Text(if (submitting) "Starting…" else if (capture.refreshId == null) "Download" else "Replace link and resume") }
         }

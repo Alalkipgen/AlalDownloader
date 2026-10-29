@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.outlined.AltRoute
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -97,10 +98,9 @@ fun SettingsScreen(viewModel: DownloadsViewModel, browser: BrowserSession, choos
                     TextButton(onClick = background, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Background download help") }
                 } }
                 item { SettingsGroup("BROWSER") {
-                    SettingsToggle("Block obvious popups", null, browser.blockPopups, { value ->
-                        browser.blockPopups = value; browser.settings.blockPopups = value
-                        browser.tabs.forEach { it.webView.settings.javaScriptCanOpenWindowsAutomatically = !value }
-                    }, Icons.Outlined.Block)
+                    SettingsToggle("Block popups", "Same-site popups you tap open in a new tab", browser.blockPopups, browser::setPopupBlocking, Icons.Outlined.Block)
+                    SettingsToggle("Block redirects", "Jumps to another site you did not start", browser.blockRedirects, browser::setRedirectBlocking, Icons.AutoMirrored.Outlined.AltRoute)
+                    com.alal.downloader.feature.browser.RedirectSites(browser, Modifier.padding(horizontal = 14.dp))
                     SettingsToggle("Desktop mode", null, browser.desktop, browser::setDesktopMode, Icons.Outlined.DesktopWindows)
                     SettingsToggle("Clipboard suggestions", "While the app is in the foreground", browser.clipboardEnabled, { browser.clipboardEnabled = it; browser.settings.clipboard = it }, Icons.Outlined.ContentPaste)
                     SettingsToggle("Media candidates", "URL based, not MIME-confirmed", browser.mediaEnabled, { browser.mediaEnabled = it; browser.settings.media = it }, Icons.Outlined.Movie)
@@ -294,9 +294,9 @@ internal fun TransferControls(viewModel: DownloadsViewModel, applied: () -> Unit
     Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
         SettingSlider("Concurrent downloads", concurrent, 10, { concurrent = it }, ::submit)
         SettingSlider("Segments per file", segments, 32, { segments = it }, ::submit)
-        SettingsToggle("Speed limit", if (limited) "$speed KiB/s" else "Unlimited \u00b7 shared by all downloads", limited, { limited = it; submit() }, divider = false)
+        SettingsToggle("Speed limit", if (limited) "$speed KB/s" else "Unlimited \u00b7 shared by all downloads", limited, { limited = it; submit() }, divider = false)
         if (limited) {
-            OutlinedTextField(speed, { speed = it; submit() }, label = { Text("KiB/s") }, singleLine = true, shape = FieldShape,
+            OutlinedTextField(speed, { speed = it; submit() }, label = { Text("KB/s") }, singleLine = true, shape = FieldShape,
                 isError = speed.toLongOrNull()?.let { it in 1..Long.MAX_VALUE / 1024 } != true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -1,6 +1,7 @@
 package com.alal.downloader.core.engine
 
 import java.io.IOException
+import java.util.Locale
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import okhttp3.Call
@@ -11,14 +12,15 @@ import okhttp3.Request
 import okhttp3.Response
 import kotlin.coroutines.resumeWithException
 
-internal class DownloadHttp(private val client: OkHttpClient) {
+internal class DownloadHttp(private val client: OkHttpClient, private val cookies: CookieSource = CookieSource.None) {
     private val redirectClient by lazy { client.newBuilder().followRedirects(false).followSslRedirects(false).build() }
     private val insecureClient by lazy { TlsPolicy.insecure(redirectClient) }
 
     suspend fun execute(input: DownloadRequest, method: String, range: String? = null, validator: String? = null): Response {
+        val headers = requestHeaders(input, range, validator)
         var url = input.url
         repeat(6) { hop ->
-            val response = executeOnce(clientFor(url), input, url, method, range, validator)
+            val response = executeOnce(clientFor(url), url, method, RedirectHeaders.forHop(headers, input.url, url, cookies))
             if (response.code !in setOf(301, 302, 303, 307, 308)) return response
             val next = response.header("Location")?.let { response.request.url.resolve(it) }
             response.close()
@@ -34,19 +36,26 @@ internal class DownloadHttp(private val client: OkHttpClient) {
     private fun clientFor(url: String): OkHttpClient =
         if (TlsPolicy.isInsecure(url.toHttpUrlOrNull()?.host)) insecureClient else redirectClient
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun executeOnce(client: OkHttpClient, input: DownloadRequest, url: String, method: String, range: String?, validator: String?): Response {
-        val builder = Request.Builder().url(url)
-        input.cookies?.let { builder.header("Cookie", it) }
-        input.referer?.let { builder.header("Referer", it) }
-        input.userAgent?.let { builder.header("User-Agent", it) }
-        input.headers.forEach { (name, value) -> builder.header(name, value) }
-        if (input.headers.keys.none { it.equals("Accept-Encoding", true) }) builder.header("Accept-Encoding", "identity")
+    private fun requestHeaders(input: DownloadRequest, range: String?, validator: String?): List<Pair<String, String>> {
+        val headers = LinkedHashMap<String, Pair<String, String>>()
+        fun set(name: String, value: String) { headers[name.lowercase(Locale.ROOT)] = name to value }
+        input.cookies?.let { set("Cookie", it) }
+        input.referer?.let { set("Referer", it) }
+        input.userAgent?.let { set("User-Agent", it) }
+        input.headers.forEach { (name, value) -> set(name, value) }
+        if (input.headers.keys.none { it.equals("Accept-Encoding", true) }) set("Accept-Encoding", "identity")
         if (input.referer == null && input.headers.keys.none { it.equals("Referer", true) }) {
-            input.referrerPageUrl?.let { builder.header("Referer", it) }
+            input.referrerPageUrl?.let { set("Referer", it) }
         }
-        if (range != null) builder.header("Range", range)
-        if (validator != null) builder.header("If-Range", validator)
+        if (range != null) set("Range", range)
+        if (validator != null) set("If-Range", validator)
+        return headers.values.toList()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun executeOnce(client: OkHttpClient, url: String, method: String, headers: List<Pair<String, String>>): Response {
+        val builder = Request.Builder().url(url)
+        headers.forEach { (name, value) -> builder.header(name, value) }
         val request = builder.method(method, null).build()
         val call = client.newCall(request)
         return suspendCancellableCoroutine { continuation ->
@@ -61,6 +70,18 @@ internal class DownloadHttp(private val client: OkHttpClient) {
                 }
             })
         }
+    }
+}
+
+internal object RedirectHeaders {
+    private val credentials = setOf("cookie", "authorization", "proxy-authorization")
+
+    fun forHop(headers: List<Pair<String, String>>, originUrl: String, hopUrl: String, cookies: CookieSource): List<Pair<String, String>> {
+        val origin = originUrl.toHttpUrlOrNull()?.host
+        if (origin != null && origin == hopUrl.toHttpUrlOrNull()?.host) return headers
+        val kept = headers.filter { it.first.lowercase(Locale.ROOT) !in credentials }
+        val cookie = cookies.cookieFor(hopUrl)?.takeIf { it.isNotBlank() } ?: return kept
+        return kept + ("Cookie" to cookie)
     }
 }
 
