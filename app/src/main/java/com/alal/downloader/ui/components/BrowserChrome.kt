@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,6 +56,9 @@ fun BrowserChrome(session: BrowserSession, tabs: () -> Unit, media: () -> Unit, 
             ChromeButton(Icons.Outlined.ArrowBack, "Back", enabled = tab?.back == true) { session.back() }
             ChromeButton(Icons.Outlined.ArrowForward, "Forward", enabled = tab?.forward == true) { session.forward() }
             ChromeButton(Icons.Outlined.Home, "Home") { stopped = false; focus.clearFocus(); session.navigate(BrowserPolicy.HOME) }
+            val starred = session.starred
+            ChromeButton(if (starred == true) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                if (starred == true) "Remove bookmark" else "Add bookmark", enabled = starred != null, click = session::toggleBookmark)
             Spacer(Modifier.weight(1f))
             ChromeButton(Icons.Outlined.Tab, "Tabs", count = session.tabs.size, click = tabs)
             ChromeButton(Icons.Outlined.Download, "Media candidates", count = tab?.media?.size?.takeIf { it > 0 }, click = media)

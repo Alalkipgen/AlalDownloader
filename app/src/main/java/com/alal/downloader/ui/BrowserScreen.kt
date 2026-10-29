@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -92,6 +93,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
     var showMore by remember { mutableStateOf(false) }
     var showFind by remember { mutableStateOf(false) }
     var showExternal by remember { mutableStateOf(false) }
+    var showBookmarks by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val history = remember(context) { context.historyRepository() }
     val incognito by history.incognito.collectAsStateWithLifecycle()
@@ -166,7 +168,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
                             }
                             TextButton(onClick = {
                                 session.active?.webView?.onPause()
-                                session.selected = item.id
+                                session.select(item.id)
                                 session.resume()
                                 showTabs = false
                             }) { Text(item.title, maxLines = 2) }
@@ -183,7 +185,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
     }
     if (showMore) ModalBottomSheet(onDismissRequest = { showMore = false }) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
-            listOf("New tab", "Add link to queue", "Open magnet/torrent", "Find in page", "Share page", "History", "Browser settings", "Manage open tabs").forEach { label ->
+            listOf("New tab", "Add link to queue", "Open magnet/torrent", "Find in page", "Share page", "History", "Bookmarks", "Browser settings", "Manage open tabs").forEach { label ->
                 TextButton(onClick = {
                     showMore = false
                     when (label) {
@@ -195,6 +197,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
                             .onFailure { android.widget.Toast.makeText(context, "No sharing app available", android.widget.Toast.LENGTH_SHORT).show() }
                         "Browser settings" -> showSettings = true
                         "History" -> openHistory()
+                        "Bookmarks" -> showBookmarks = true
                         else -> showTabs = true
                     }
                 }, modifier = Modifier.fillMaxWidth()) {
@@ -203,6 +206,24 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
                 }
             }
             SettingSwitch("Desktop mode", session.desktop, session::setDesktopMode)
+        }
+    }
+    if (showBookmarks) ModalBottomSheet(onDismissRequest = { showBookmarks = false }) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Text("Bookmarks", style = MaterialTheme.typography.titleLarge)
+            if (session.bookmarks.isEmpty()) Text("No bookmarks yet. Tap the star to add the current page.", Modifier.padding(vertical = 12.dp))
+            session.bookmarks.forEach { page ->
+                val host = page.url.toHttpUrlOrNull()?.host.orEmpty()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { showBookmarks = false; session.navigate(page.url) }, modifier = Modifier.weight(1f)) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text(page.title.ifBlank { host }, maxLines = 2)
+                            Text(host, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    IconButton(onClick = { session.removeBookmark(page.url) }) { Icon(Icons.Filled.Delete, "Delete bookmark") }
+                }
+            }
         }
     }
     if (showFind) {

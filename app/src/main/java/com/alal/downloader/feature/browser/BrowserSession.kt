@@ -21,6 +21,7 @@ import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import com.alal.downloader.core.engine.DownloadRequest
 import com.alal.downloader.core.engine.DownloadState
@@ -33,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -67,6 +69,7 @@ class BrowserTab(val id: String, val webView: WebView) {
     internal var committed = false
     @Volatile internal var tapKey = ""
     @Volatile internal var tap: RecordedTap? = null
+    internal var pending: String? = null
 }
 
 /** The single guard bar: a blocked popup (Open in a new tab) or a blocked redirect (Open here, Allow on its site). */
@@ -78,6 +81,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
     val settings = BrowserSettings(context.applicationContext)
     val tabs = mutableStateListOf<BrowserTab>()
     var selected by mutableStateOf("")
+        private set
     var capture by mutableStateOf<BrowserCapture?>(null)
     var linkMenu by mutableStateOf<Pair<String, String>?>(null)
     var refresh by mutableStateOf<DownloadState?>(null)
@@ -100,16 +104,66 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
     private var closed = false
     var visible = true
     val active: BrowserTab? get() = tabs.find { it.id == selected }
+    private val store = BrowserStore(context.applicationContext)
+    var bookmarks by mutableStateOf(store.bookmarks())
+        private set
+
+    /** Whether the current page is bookmarked; null when it cannot be (not an http(s) page). */
+    val starred: Boolean? get() = active?.let { BrowserState.page(it.url, it.title) }?.let { BrowserState.bookmarked(bookmarks, it.url) }
 
     init {
         Log.d("Browser", "session init tabs=${tabs.size}")
+        restore()
         ensureActiveTab()
         scope.launch(Dispatchers.Default) { BrowserPolicy.site(BrowserPolicy.HOME) }
+        scope.launch { snapshotFlow { savedTabs() }.conflate().collect { store.saveTabs(it); delay(SAVE_INTERVAL_MS) } }
     }
 
     fun ensureActiveTab(): BrowserTab {
         check(!closed) { "Browser session has been disposed" }
-        return active ?: tabs.firstOrNull()?.also { selected = it.id } ?: newTab()
+        return active ?: tabs.firstOrNull()?.also { select(it.id) } ?: newTab()
+    }
+
+    /** Shows a tab; a restored tab loads its address (user-started) the first time it is shown. */
+    fun select(id: String) {
+        val tab = tabs.find { it.id == id } ?: return
+        selected = tab.id
+        if (visible) loadPending(tab)
+    }
+
+    private fun loadPending(tab: BrowserTab) { tab.pending?.let { load(tab, it) } }
+
+    /** The tabs of the last run come back with their address and title, in order, with the same one selected; none loads before it is shown. */
+    private fun restore() {
+        val saved = store.tabs() ?: return
+        saved.pages.forEach { page ->
+            val tab = createTab()
+            tab.url = page.url
+            tab.title = page.title
+            tab.pending = page.url
+            tabs.add(tab)
+        }
+        selected = tabs[saved.selected].id
+        Log.d("Browser", "restored tabs=${tabs.size}")
+    }
+
+    private fun savedTabs(): SavedTabs? {
+        val pages = tabs.mapNotNull { tab -> BrowserState.page(tab.url, tab.title)?.let { tab.id to it } }.take(BrowserState.MAX_TABS)
+        if (pages.isEmpty()) return null
+        return SavedTabs(pages.map { it.second }, pages.indexOfFirst { it.first == selected }.coerceAtLeast(0))
+    }
+
+    /** The star: adds the current page (title, address) or removes it. */
+    fun toggleBookmark() {
+        val page = active?.let { BrowserState.page(it.url, it.title) } ?: return
+        bookmarks = if (BrowserState.bookmarked(bookmarks, page.url)) BrowserState.removeBookmark(bookmarks, page.url)
+            else BrowserState.addBookmark(bookmarks, page)
+        store.saveBookmarks(bookmarks)
+    }
+
+    fun removeBookmark(url: String) {
+        bookmarks = BrowserState.removeBookmark(bookmarks, url)
+        store.saveBookmarks(bookmarks)
     }
 
     fun newTab(url: String = BrowserPolicy.HOME, referer: String? = null, opener: BrowserTab? = null): BrowserTab {
@@ -117,7 +171,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         val tab = createTab()
         tab.openerId = opener?.id
         tabs.add(tab)
-        selected = tab.id
+        select(tab.id)
         Log.d("Browser", "newTab tabs=${tabs.size} active=${tab.id}")
         val address = if (opener != null) url else BrowserPolicy.address(url)
         if (!route(tab, address)) load(tab, address, referer)
@@ -141,7 +195,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         tab.webView.removeJavascriptInterface(TapRecorder.NAME)
         (tab.webView.parent as? android.view.ViewGroup)?.removeView(tab.webView)
         tab.webView.destroy()
-        if (tabs.isEmpty()) newTab() else if (selected == tab.id) selected = tabs.last().id
+        if (tabs.isEmpty()) newTab() else if (selected == tab.id) select(tabs.last().id)
     }
 
     fun navigate(input: String) {
@@ -154,6 +208,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
     /** App-started loads (URL bar, tabs, Reopen page, a bar's Open) are user-started: their server redirects follow. */
     private fun load(tab: BrowserTab, url: String, referer: String? = null) {
         tab.error = null
+        tab.pending = null
         tab.userChain = true
         Log.d("Browser", "loadUrl on ${System.identityHashCode(tab.webView)} host=${url.toHttpUrlOrNull()?.host}")
         if (referer == null) tab.webView.loadUrl(url) else tab.webView.loadUrl(url, mapOf("Referer" to referer))
@@ -171,7 +226,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
         val tab = tabs.find { it.id == blocked.tabId }
         if (blocked.popup) { newTab(blocked.url, blocked.referer, tab); return }
         if (tab == null) return
-        selected = tab.id
+        select(tab.id)
         load(tab, blocked.url, blocked.referer)
     }
 
@@ -220,14 +275,16 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
     }
 
     fun pause() {
+        if (!closed) store.saveTabs(savedTabs())
         tabs.forEach { it.webView.onPause() }
         CookieManager.getInstance().flush()
     }
 
-    fun resume() { if (visible) active?.webView?.onResume() }
+    fun resume() { if (visible) active?.let { loadPending(it); it.webView.onResume() } }
 
     fun close() {
         Log.d("Browser", "session close tabs=${tabs.size}")
+        if (!closed) store.saveTabs(savedTabs())
         closed = true
         scope.cancel()
         CookieManager.getInstance().flush()
@@ -285,7 +342,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
             tab.userChain = false
             val opener = tab.openerId?.takeIf { !tab.committed }?.let { id -> tabs.find { it.id == id } }
             captureDownload(opener ?: tab, url, ua, disposition, mime, length, listener = true)
-            if (opener != null) { selected = opener.id; scope.launch(Dispatchers.Main) { discard(tab) } }
+            if (opener != null) { select(opener.id); scope.launch(Dispatchers.Main) { discard(tab) } }
         }
         view.setOnLongClickListener {
             val hit = view.hitTestResult
@@ -526,6 +583,7 @@ class BrowserSession(private val context: Context, private val probe: suspend (D
     private companion object {
         const val MAX_POPUPS = 4
         const val POPUP_WAIT_MS = 15_000L
+        const val SAVE_INTERVAL_MS = 1_000L
         const val PAUSE_MEDIA = "document.querySelectorAll('video,audio').forEach(function(m){m.pause()})"
         const val STOP_MEDIA = "document.querySelectorAll('video,audio').forEach(function(m){m.pause();m.removeAttribute('src');" +
             "m.querySelectorAll('source').forEach(function(s){s.remove()});m.load()})"
