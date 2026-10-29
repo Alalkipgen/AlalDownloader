@@ -48,7 +48,8 @@ private val FILTERS = listOf("All", "Active", "Queued", "Done", "Failed")
 /** Download dashboard using the existing state and command boundary. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Unit, modifier: Modifier = Modifier, chooseFolder: () -> Unit = {}, openBrowser: () -> Unit, openSettings: () -> Unit, addLink: (String) -> Unit) {
+fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Unit, modifier: Modifier = Modifier, chooseFolder: () -> Unit = {}, openBrowser: () -> Unit, openSettings: () -> Unit, addLink: (String) -> Unit,
+    shared: String? = null, sharedShown: () -> Unit = {}) {
     val live by viewModel.downloads.collectAsStateWithLifecycle()
     val latest by rememberUpdatedState(live)
     var downloads by remember { mutableStateOf(live) }
@@ -71,6 +72,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
     var dial by remember { mutableStateOf(false) }
     var batch by remember { mutableStateOf(false) }
     var input by remember { mutableStateOf("") }
+    LaunchedEffect(shared) { if (shared != null) { input = shared; batch = true; sharedShown() } }
     var details by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf(setOf<String>()) }
     var deletion by remember { mutableStateOf<Set<String>?>(null) }
@@ -226,7 +228,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
             reopen = { details = null; reopen(item) }, notify = { message = it })
     }
     message?.let { value -> AlertDialog(onDismissRequest = { message = null }, shape = SettingsShape, title = { Text("Downloader") }, text = { Text(value) }, confirmButton = { TextButton(onClick = { message = null }) { Text("Close") } }) }
-    if (batch) BatchSheet(viewModel, input) { batch = false }
+    if (batch) key(input) { BatchSheet(viewModel, input) { batch = false } }
 }
 
 /** Pill filter with its live count, filled with the brand gradient while selected. */
