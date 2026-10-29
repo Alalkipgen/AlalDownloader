@@ -31,6 +31,24 @@ class BrowserPolicyTest {
         assertFalse(BrowserPolicy.downloadable("https://example.com/file.zip", "gzip"))
     }
 
+    @Test fun navigationLoadsPagesWhoseUrlEndsInDownloadExtension() {
+        listOf("https://files.example.com/a1b2c3/video.mp4", "https://example.com/FILE.ZIP?token=x",
+            "http://example.com/movie.mkv", "https://example.com/page").forEach {
+            assertEquals(it, BrowserPolicy.Navigation.LOAD, BrowserPolicy.navigation(it))
+        }
+    }
+
+    @Test fun navigationKeepsMagnetPageDataAndUnsupportedSchemes() {
+        assertEquals(BrowserPolicy.Navigation.MAGNET, BrowserPolicy.navigation("magnet:?xt=urn:btih:abc"))
+        assertEquals(BrowserPolicy.Navigation.MAGNET, BrowserPolicy.navigation("MAGNET:?xt=urn:btih:abc"))
+        assertEquals(BrowserPolicy.Navigation.CAPTURE, BrowserPolicy.navigation("blob:https://example.com/0f1e2d3c"))
+        assertEquals(BrowserPolicy.Navigation.CAPTURE, BrowserPolicy.navigation("data:video/mp4;base64,AAAA"))
+        listOf("intent://scan#Intent;end", "mailto:user@example.com", "about:blank", "file:///sdcard/video.mp4",
+            "ftp://example.com/file.zip").forEach {
+            assertEquals(it, BrowserPolicy.Navigation.UNSUPPORTED, BrowserPolicy.navigation(it))
+        }
+    }
+
     @Test fun acceptanceAddressesResolveWithoutSendingMagnetToWebView() {
         assertEquals("https://www.facebook.com/", BrowserPolicy.address("www.facebook.com"))
         assertEquals("https://www.google.com/search?q=notion+android", BrowserPolicy.address("notion android"))

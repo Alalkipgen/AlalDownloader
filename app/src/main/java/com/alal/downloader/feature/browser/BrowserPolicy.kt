@@ -40,6 +40,16 @@ object BrowserPolicy {
         suffix.isNotEmpty() && suffix in extensions.lowercase().split(Regex("""[\s,;]+""")).map { it.trimStart('.') }
     }
 
+    /** Top-level navigation outcome; a URL's file extension never turns a page load into a download. */
+    enum class Navigation { LOAD, CAPTURE, MAGNET, UNSUPPORTED }
+
+    fun navigation(url: String): Navigation = when {
+        url.startsWith("magnet:", true) -> Navigation.MAGNET
+        url.startsWith("blob:") || url.startsWith("data:") -> Navigation.CAPTURE
+        url.toHttpUrlOrNull() == null -> Navigation.UNSUPPORTED
+        else -> Navigation.LOAD
+    }
+
     fun mediaCandidate(url: String): Boolean = extension(url) in mediaExtensions
 
     fun matches(target: DownloadState, fileName: String, size: Long): Boolean =

@@ -307,14 +307,11 @@ class BrowserSession(private val context: Context) {
         tab.forward = tab.webView.canGoForward()
     }
 
-    private fun route(tab: BrowserTab, url: String): Boolean {
-        if (url.startsWith("magnet:", true)) { toast("Torrent not supported yet"); return true }
-        if (url.startsWith("blob:") || url.startsWith("data:")) { captureLink(tab.id, url); return true }
-        if (url.toHttpUrlOrNull() == null) { toast("Unsupported link scheme"); return true }
-        if (!(refresh != null && refreshTabId == tab.id) && BrowserPolicy.downloadable(url, extensions)) {
-            captureLink(tab.id, url); return true
-        }
-        return false
+    private fun route(tab: BrowserTab, url: String): Boolean = when (BrowserPolicy.navigation(url)) {
+        BrowserPolicy.Navigation.LOAD -> false
+        BrowserPolicy.Navigation.CAPTURE -> { captureLink(tab.id, url); true }
+        BrowserPolicy.Navigation.MAGNET -> { toast("Torrent not supported yet"); true }
+        BrowserPolicy.Navigation.UNSUPPORTED -> { toast("Unsupported link scheme"); true }
     }
 
     private fun buildCapture(tab: BrowserTab, url: String, ua: String?, disposition: String?, mime: String?, length: Long,

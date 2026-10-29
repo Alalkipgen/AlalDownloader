@@ -1,3 +1,11 @@
+# Browser file capture — `work/browser-file-capture`
+
+## Status (2026-10-29)
+
+Owner-requested 1DM-style flow: Paste & Go opens the page, the owner completes host steps by hand, and the confirmation sheet opens only when the browser receives the actual file. No host-specific code, resolvers or automation. CI (`ci.yml`) on the branch is the build/test record; phone test is **NOT RUN**.
+
+- Navigation never becomes a download because of its URL. `BrowserPolicy.navigation()` decides URL-bar submissions, main-frame `shouldOverrideUrlLoading` and forwarded popups: http(s) always loads, so a host page whose URL ends in `.mp4` opens as a page. Magnet toast, blob:/data: page-bound save, unsupported-scheme toast, long-press **Download link** and refresh-tab matching are unchanged. JUnit covers `.mp4`/signed-query page loads and magnet/blob:/data:/unsupported schemes.
+
 # Phase 4: Downloads UI and settings — checkpoint
 
 ## Phase 4 status (2026-09-12)
