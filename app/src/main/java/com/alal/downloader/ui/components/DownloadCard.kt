@@ -1,5 +1,6 @@
 package com.alal.downloader.ui.components
 
+import com.alal.downloader.core.engine.ByteFormat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
@@ -33,14 +34,14 @@ fun DownloadCard(item: DownloadState, queuePosition: Int, selected: Boolean, cli
     val running = item.status == DownloadStatus.RUNNING
     val done = item.status == DownloadStatus.COMPLETED
     val failed = item.status == DownloadStatus.FAILED
-    val size = DownloadPresentation.bytes(item.totalBytes)
+    val size = ByteFormat.size(item.totalBytes)
     val meta = when (item.status) {
-        DownloadStatus.RUNNING -> "${DownloadPresentation.bytes(item.downloadedBytes)} of $size \u00b7 ${DownloadPresentation.bytes(item.speedBytesPerSecond)}/s \u00b7 ${DownloadPresentation.eta(item)} left"
+        DownloadStatus.RUNNING -> "${ByteFormat.size(item.downloadedBytes)} of $size \u00b7 ${ByteFormat.speed(item.speedBytesPerSecond)} \u00b7 ${DownloadPresentation.eta(item)} left"
         DownloadStatus.QUEUED -> "Queued \u00b7 #$queuePosition \u00b7 $size"
         DownloadStatus.COMPLETED -> "Done \u00b7 $size"
         DownloadStatus.FAILED -> item.error?.message ?: "Failed \u00b7 tap to retry"
         DownloadStatus.NEEDS_BROWSER -> "Web page \u00b7 open in browser"
-        else -> "${item.status.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }} \u00b7 ${DownloadPresentation.bytes(item.downloadedBytes)} of $size"
+        else -> "${item.status.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }} \u00b7 ${ByteFormat.size(item.downloadedBytes)} of $size"
     }
     Card(Modifier.fillMaxWidth().combinedClickable(onClick = click, onLongClick = longClick), shape = CardShape,
         border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),

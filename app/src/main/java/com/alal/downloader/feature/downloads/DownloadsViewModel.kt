@@ -134,7 +134,7 @@ class DownloadsViewModel @Inject constructor(
                 currentCoroutineContext().ensureActive()
                 val read = stream.read(buffer)
                 if (read < 0) break
-                require(output.size() + read <= DownloadPresentation.MAX_INPUT) { "Text file exceeds 1 MiB" }
+                require(output.size() + read <= DownloadPresentation.MAX_INPUT) { "Text file exceeds 1 MB" }
                 output.write(buffer, 0, read)
             }
             Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(output.toByteArray())).toString()

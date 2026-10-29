@@ -294,9 +294,9 @@ internal fun TransferControls(viewModel: DownloadsViewModel, applied: () -> Unit
     Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
         SettingSlider("Concurrent downloads", concurrent, 10, { concurrent = it }, ::submit)
         SettingSlider("Segments per file", segments, 32, { segments = it }, ::submit)
-        SettingsToggle("Speed limit", if (limited) "$speed KiB/s" else "Unlimited \u00b7 shared by all downloads", limited, { limited = it; submit() }, divider = false)
+        SettingsToggle("Speed limit", if (limited) "$speed KB/s" else "Unlimited \u00b7 shared by all downloads", limited, { limited = it; submit() }, divider = false)
         if (limited) {
-            OutlinedTextField(speed, { speed = it; submit() }, label = { Text("KiB/s") }, singleLine = true, shape = FieldShape,
+            OutlinedTextField(speed, { speed = it; submit() }, label = { Text("KB/s") }, singleLine = true, shape = FieldShape,
                 isError = speed.toLongOrNull()?.let { it in 1..Long.MAX_VALUE / 1024 } != true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

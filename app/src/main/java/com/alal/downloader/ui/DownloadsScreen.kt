@@ -1,11 +1,11 @@
 package com.alal.downloader.feature.downloads
 
+import com.alal.downloader.core.engine.ByteFormat
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Environment
 import android.os.StatFs
-import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -196,7 +196,7 @@ fun DownloadsScreen(viewModel: DownloadsViewModel, reopen: (DownloadState) -> Un
                     }
                 }
                 if (running > 0 || speedHistory.any { it > 0f }) SpeedStrip(
-                    "${DownloadPresentation.bytes(speed)}/s", running, speedHistory.toList(), appearance.speedGraph,
+                    ByteFormat.speed(speed), running, speedHistory.toList(), appearance.speedGraph,
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
                 if (shown.isEmpty()) EmptyDownloads(Modifier.fillMaxWidth().weight(1f)) { addLink(clipboardDownloadLink(context)) }
                 else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -271,7 +271,7 @@ private fun DrawerContent(downloads: List<DownloadState>, category: String, tree
                 val free = stat.availableBytes
                 val total = stat.totalBytes.coerceAtLeast(1)
                 Triple((total - free).toFloat() / total,
-                    "${Formatter.formatShortFileSize(context, free)} free of ${Formatter.formatShortFileSize(context, total)}",
+                    "${ByteFormat.size(free)} free of ${ByteFormat.size(total)}",
                     "${(total - free) * 100 / total}%")
             }.getOrElse { Triple(0f, "Storage unavailable", "") }
         }
@@ -335,7 +335,7 @@ private fun DetailSheet(item: DownloadState, history: List<Float>, showGraph: Bo
                 FileTypeTile(item.fileName, 52.dp)
                 Column(Modifier.weight(1f)) {
                     Text(item.fileName, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text("${DownloadPresentation.bytes(item.downloadedBytes)} of ${DownloadPresentation.bytes(item.totalBytes)}",
+                    Text("${ByteFormat.size(item.downloadedBytes)} of ${ByteFormat.size(item.totalBytes)}",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 StorageRing(percent / 100f, "$percent%", 58.dp)
@@ -431,7 +431,7 @@ private fun BatchSheet(viewModel: DownloadsViewModel, initialInput: String, dism
                 }
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            Text("Up to 1000 URLs / 1 MiB UTF-8 text. Current folder and segment defaults apply. Magnets are skipped: Torrent not supported yet.",
+            Text("Up to 1000 URLs / 1 MB UTF-8 text. Current folder and segment defaults apply. Magnets are skipped: Torrent not supported yet.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SecondaryAction("Import .txt", !busy, icon = Icons.Outlined.UploadFile) { picker.launch(arrayOf("text/plain")) }

@@ -1,5 +1,6 @@
 package com.alal.downloader.feature.browser
 
+import com.alal.downloader.core.engine.ByteFormat
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -252,7 +253,7 @@ fun BrowserScreen(session: BrowserSession, modifier: Modifier = Modifier, naviga
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(media.fileName)
-                        Text("${media.mimeType ?: media.fileName.substringAfterLast('.', "Unknown type")} · ${if (media.size >= 0) "${media.size} bytes" else "Size unknown"}", style = MaterialTheme.typography.bodySmall)
+                        Text("${media.mimeType ?: media.fileName.substringAfterLast('.', "Unknown type")} · ${if (media.size >= 0) ByteFormat.size(media.size) else "Size unknown"}", style = MaterialTheme.typography.bodySmall)
                     }
                     TextButton(onClick = { if (session.capture == null) session.capture = media; showMedia = false }) { Text("Download") }
                 }
@@ -289,7 +290,7 @@ fun BrowserConfirmation(session: BrowserSession, viewModel: BrowserViewModel, ch
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(if (capture.refreshId == null) "Confirm download" else "Replace expired link", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(name, { name = it }, label = { Text("Filename") }, enabled = capture.refreshId == null && !submitting, modifier = Modifier.fillMaxWidth())
-            Text(if (capture.size >= 0) "Size: ${capture.size} bytes" else "Size: unknown")
+            Text(if (capture.size >= 0) "Size: ${ByteFormat.size(capture.size)}" else "Size: unknown")
             if (capture.refreshId == null) {
                 Text("Target: ${tree ?: if (Build.VERSION.SDK_INT >= 29) "Download/Downloader" else "Select a folder"}")
                 Row {

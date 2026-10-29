@@ -1,5 +1,6 @@
 package com.alal.downloader.feature.browser
 
+import com.alal.downloader.core.engine.ByteFormat
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -73,7 +74,7 @@ class DirectDownloadWriter(context: Context, private val report: (String) -> Uni
                             requireNotNull(output).write(offset, block, count)
                             offset += count
                         }
-                    }) { update("Saving $it bytes") }
+                    }) { update("Saving ${ByteFormat.size(it)}") }
                     finish(key)
                 } else {
                     val script = blobScript(key, request.url)
@@ -103,7 +104,7 @@ class DirectDownloadWriter(context: Context, private val report: (String) -> Uni
                 requireNotNull(output).write(offset, bytes, bytes.size)
                 offset += bytes.size
                 sequence++
-                update("Saving $offset / $expected bytes")
+                update("Saving ${ByteFormat.size(offset)} / ${ByteFormat.size(expected)}")
                 if (last) {
                     check(offset == expected) { "Incomplete blob" }
                     finish(key)
@@ -159,7 +160,7 @@ class DirectDownloadWriter(context: Context, private val report: (String) -> Uni
         state = null
         synchronized(this) { if (token == key) { token = null; outstanding = false } }
         main.post { if (pageToken == key) removePageBridge() }
-        update("Saved $name ($offset bytes)")
+        update("Saved $name (${ByteFormat.size(offset)})")
     }
 
     private fun fail(key: String, failure: Exception) {
