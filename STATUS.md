@@ -1,3 +1,9 @@
+# v0.2.0 — browser work merged to `main`
+
+## Status (2026-10-29)
+
+Phone test **PASS** by the owner on the CI Build #52 debug APK (`work/browser-guard` d4a45ab): MegaUp, Google Drive, a direct `.mp4`, the popup/redirect bar, Share to Downloader, rotation, tabs, bookmarks and the speed/size labels. This supersedes "phone test is **NOT RUN**" in the two branch sections below; they are otherwise unchanged. Both branches (`work/browser-file-capture` 500b9f6–6fc51ab and `work/browser-guard` f103f4f–d4a45ab) merge into `main` with a merge commit for v0.2.0, so the SHAs in these notes stay valid.
+
 # Browser guard, share and tabs — `work/browser-guard`
 
 ## Status (2026-10-29)
