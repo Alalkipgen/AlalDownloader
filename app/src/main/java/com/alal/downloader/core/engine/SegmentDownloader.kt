@@ -17,8 +17,12 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 
 /** Streams a segment directly to its file offsets with bounded, cancellable retries. */
-class SegmentDownloader(client: OkHttpClient, private val limiter: TransferLimiter = TransferLimiter()) {
-    private val http = DownloadHttp(client)
+class SegmentDownloader(
+    client: OkHttpClient,
+    private val limiter: TransferLimiter = TransferLimiter(),
+    cookies: CookieSource = CookieSource.None,
+) {
+    private val http = DownloadHttp(client, cookies)
 
     suspend fun download(
         request: DownloadRequest,

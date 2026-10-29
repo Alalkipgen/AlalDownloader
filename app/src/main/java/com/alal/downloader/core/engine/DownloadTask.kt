@@ -23,14 +23,15 @@ class DownloadTask(
     private val publish: (DownloadState) -> Unit,
     private val storage: DownloadStorage = FileDownloadStorage(),
     limiter: TransferLimiter = TransferLimiter(),
+    cookies: CookieSource = CookieSource.None,
 ) {
     var state: DownloadState = initial
         private set
     private val mutex = Mutex()
     private var slots = mutableSetOf<Int>()
     private val slotMutex = Mutex()
-    private val probe = RangeProbe(client)
-    private val downloader = SegmentDownloader(client, limiter)
+    private val probe = RangeProbe(client, cookies)
+    private val downloader = SegmentDownloader(client, limiter, cookies)
     private val samples = ArrayDeque<Pair<Long, Long>>()
 
     init {

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.alal.downloader.core.engine.CookieSource
 import com.alal.downloader.core.engine.DownloadEngine
 import com.alal.downloader.core.engine.TlsPolicy
 import dagger.Module
@@ -64,6 +65,6 @@ object DownloadModule {
 
     @Provides
     @Singleton
-    fun engine(client: OkHttpClient, repository: DownloadRepository, storage: AndroidDownloadStorage): DownloadEngine =
-        DownloadEngine(client, repository, storage = storage)
+    fun engine(client: OkHttpClient, repository: DownloadRepository, storage: AndroidDownloadStorage, cookies: CookieSource): DownloadEngine =
+        DownloadEngine(client, repository, storage = storage, cookies = cookies)
 }

@@ -9,8 +9,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 
 /** Discovers remote size, validators, filename and range capability without reading the file. */
-class RangeProbe(client: OkHttpClient) {
-    private val http = DownloadHttp(client)
+class RangeProbe(client: OkHttpClient, cookies: CookieSource = CookieSource.None) {
+    private val http = DownloadHttp(client, cookies)
 
     /**
      * Interactive callers (the Connect button) pass retryOnFailure=false and get exactly one attempt so the real
