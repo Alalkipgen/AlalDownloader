@@ -39,6 +39,7 @@ data class ProbeResult(
     val lastModified: String?,
     val finalUrl: String,
     val fileName: String?,
+    val serverFileName: String? = null,
 )
 
 /** Observable and persistable snapshot of one transfer. */

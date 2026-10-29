@@ -1,6 +1,7 @@
 package com.alal.downloader.feature.browser
 
 import com.alal.downloader.core.engine.DownloadState
+import com.alal.downloader.core.engine.ProbeResult
 import java.io.OutputStream
 import java.net.URLEncoder
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -49,6 +50,33 @@ object BrowserPolicy {
         url.toHttpUrlOrNull() == null -> Navigation.UNSUPPORTED
         else -> Navigation.LOAD
     }
+
+    private val mimeType = Regex("""[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+""")
+
+    fun documentType(result: String?): String? {
+        val value = result?.trim()?.takeIf { it.length > 2 && it.startsWith('"') && it.endsWith('"') } ?: return null
+        return value.substring(1, value.length - 1).substringBefore(';').trim().lowercase().takeIf { mimeType.matches(it) }
+    }
+
+    fun offersDocument(contentType: String?, url: String, extensions: String): Boolean {
+        if (url.toHttpUrlOrNull() == null) return false
+        val type = contentType?.substringBefore(';')?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return false
+        if (type.startsWith("video/") || type.startsWith("audio/")) return true
+        return type != "text/html" && type != "application/xhtml+xml" && downloadable(url, extensions)
+    }
+
+    fun documentReferrer(history: List<String?>, current: Int, fileUrl: String): String? {
+        val file = withoutQuery(fileUrl)
+        val start = if (history.getOrNull(current)?.let(::withoutQuery) == file) current - 1 else current
+        return (start downTo 0).asSequence().map { history.getOrNull(it) }.firstOrNull { it == null || withoutQuery(it) != file }
+            ?.takeIf { it.toHttpUrlOrNull() != null }
+    }
+
+    private fun withoutQuery(url: String): String =
+        url.toHttpUrlOrNull()?.newBuilder()?.query(null)?.fragment(null)?.build()?.toString() ?: url
+
+    fun documentDetails(probe: ProbeResult?, urlName: String): Pair<String, Long> =
+        if (probe == null) urlName to -1L else sanitize(probe.serverFileName ?: urlName) to probe.totalBytes
 
     fun mediaCandidate(url: String): Boolean = extension(url) in mediaExtensions
 

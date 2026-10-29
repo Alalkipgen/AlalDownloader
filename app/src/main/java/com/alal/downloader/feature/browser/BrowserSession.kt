@@ -22,8 +22,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.alal.downloader.core.engine.DownloadRequest
 import com.alal.downloader.core.engine.DownloadState
+import com.alal.downloader.core.engine.ProbeResult
+import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /** Immutable capture including the browser's request context and owning page. */
@@ -36,6 +45,7 @@ data class BrowserCapture(
     val referrer: String?,
     val tabId: String,
     val refreshId: String? = null,
+    val document: Boolean = false,
 )
 
 /** One independently navigable WebView and its observed media candidates. */
@@ -48,10 +58,13 @@ class BrowserTab(val id: String, val webView: WebView) {
     var error by mutableStateOf<String?>(null)
     var finishedLoads by mutableStateOf(0)
     val media = mutableStateListOf<BrowserCapture>()
+    internal var navigation = 0
+    internal var inspected = -1
+    internal val offered = LinkedHashSet<String>()
 }
 
 /** Activity-owned WebViews; never stores an Activity inside a ViewModel. */
-class BrowserSession(private val context: Context) {
+class BrowserSession(private val context: Context, private val probe: suspend (DownloadRequest) -> ProbeResult) {
     val settings = BrowserSettings(context.applicationContext)
     val tabs = mutableStateListOf<BrowserTab>()
     var selected by mutableStateOf("")
@@ -67,6 +80,7 @@ class BrowserSession(private val context: Context) {
     var extensions by mutableStateOf(settings.extensions)
     val writer = DirectDownloadWriter(context) { directProgress = it }
     private val popups = mutableSetOf<WebView>()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var closed = false
     var visible = true
     val active: BrowserTab? get() = tabs.find { it.id == selected }
@@ -156,6 +170,7 @@ class BrowserSession(private val context: Context) {
     fun close() {
         Log.d("Browser", "session close tabs=${tabs.size}")
         closed = true
+        scope.cancel()
         CookieManager.getInstance().flush()
         writer.close()
         popups.toList().forEach { it.destroy() }
@@ -222,6 +237,7 @@ class BrowserSession(private val context: Context) {
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 Log.d("Browser", "onPageStarted webView=${System.identityHashCode(view)} host=${url?.toHttpUrlOrNull()?.host}")
+                tab.navigation++
                 tab.error = null
                 writer.navigation(view)
                 tab.media.clear()
@@ -236,7 +252,10 @@ class BrowserSession(private val context: Context) {
                 tab.url = url ?: tab.url
                 tab.finishedLoads++
                 Log.d("Browser", "onPageFinished webView=${System.identityHashCode(view)}")
+                inspectDocument(tab)
             }
+
+            override fun onPageCommitVisible(view: WebView, url: String?) { inspectDocument(tab) }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (request.isForMainFrame) {
@@ -315,7 +334,8 @@ class BrowserSession(private val context: Context) {
     }
 
     private fun buildCapture(tab: BrowserTab, url: String, ua: String?, disposition: String?, mime: String?, length: Long,
-        sentHeaders: Map<String, String> = emptyMap()): BrowserCapture {
+        sentHeaders: Map<String, String> = emptyMap(),
+        referrer: String? = tab.webView.url?.takeIf { it.toHttpUrlOrNull() != null }): BrowserCapture {
         val headers = BrowserPolicy.replayHeaders(sentHeaders).toMutableMap()
         fun set(name: String, value: String?) {
             if (value == null) return
@@ -324,11 +344,11 @@ class BrowserSession(private val context: Context) {
         }
         set("User-Agent", tab.webView.settings.userAgentString)
         set("Cookie", CookieManager.getInstance().getCookie(url))
-        set("Referer", tab.webView.url?.takeIf { it.toHttpUrlOrNull() != null })
+        set("Referer", referrer)
         set("Accept", headers.entries.find { it.key.equals("Accept", true) }?.value ?: "*/*")
         val name = BrowserPolicy.sanitize(com.alal.downloader.core.engine.RangeProbe.parseContentDisposition(disposition)
             ?: URLUtil.guessFileName(if (url.startsWith("data:")) "download" else url, disposition, mime))
-        return BrowserCapture(url, name, length, mime, headers, tab.webView.url?.takeIf { it.toHttpUrlOrNull() != null }, tab.id)
+        return BrowserCapture(url, name, length, mime, headers, referrer, tab.id)
     }
 
     private fun captureDownload(tab: BrowserTab, url: String, ua: String?, disposition: String?, mime: String?, length: Long,
@@ -337,13 +357,69 @@ class BrowserSession(private val context: Context) {
         if (url.toHttpUrlOrNull() == null && !url.startsWith("blob:") && !url.startsWith("data:")) {
             toast("Unsupported download URL"); return
         }
-        var next = buildCapture(tab, url, ua, disposition, mime, length)
+        offer(buildCapture(tab, url, ua, disposition, mime, length), listener)
+    }
+
+    private fun offer(candidate: BrowserCapture, listener: Boolean): Boolean {
+        var next = candidate
         val target = refresh
-        if (listener && target != null && refreshTabId == tab.id && url.toHttpUrlOrNull() != null && BrowserPolicy.matches(target, next.fileName, length)) {
+        if (listener && target != null && refreshTabId == next.tabId && next.url.toHttpUrlOrNull() != null &&
+            BrowserPolicy.matches(target, next.fileName, next.size)) {
             next = next.copy(refreshId = target.id, fileName = target.fileName)
         }
-        if (capture == null) capture = next else toast("Finish or dismiss the current download confirmation first")
+        if (capture != null) { toast("Finish or dismiss the current download confirmation first"); return false }
+        capture = next
+        if (next.document) tabs.find { it.id == next.tabId }?.webView?.evaluateJavascript(PAUSE_MEDIA, null)
+        return true
+    }
+
+    private fun inspectDocument(tab: BrowserTab) {
+        val view = tab.webView
+        val url = view.url
+        val navigation = tab.navigation
+        if (closed || tab.inspected == navigation || tab.error != null || url?.toHttpUrlOrNull() == null) return
+        tab.inspected = navigation
+        view.evaluateJavascript("document.contentType") { result ->
+            if (closed || tab !in tabs || tab.navigation != navigation || tab.error != null || view.url != url) return@evaluateJavascript
+            val type = BrowserPolicy.documentType(result)
+            if (type != null && BrowserPolicy.offersDocument(type, url, extensions)) offerDocument(tab, url, type)
+        }
+    }
+
+    private fun offerDocument(tab: BrowserTab, url: String, type: String) {
+        if (capture?.url == url || !tab.offered.add(url)) return
+        while (tab.offered.size > 32) tab.offered.remove(tab.offered.first())
+        val history = tab.webView.copyBackForwardList()
+        val referrer = BrowserPolicy.documentReferrer(List(history.size) { history.getItemAtIndex(it)?.url }, history.currentIndex, url)
+        val base = buildCapture(tab, url, null, null, type, -1, referrer = referrer).copy(document = true)
+        scope.launch {
+            val result = try {
+                probe(DownloadRequest(url, base.fileName, base.headers, referrer, File("."), mimeType = type, retryOnFailure = false))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+            if (closed || tab !in tabs || tab.webView.url != url) { tab.offered.remove(url); return@launch }
+            val (name, size) = BrowserPolicy.documentDetails(result, base.fileName)
+            if (!offer(base.copy(fileName = name, size = size), listener = true)) tab.offered.remove(url)
+        }
+    }
+
+    fun submitted(done: BrowserCapture) {
+        capture = null
+        val view = tabs.find { it.id == done.tabId }?.webView ?: return
+        if (done.document && view.url == done.url) {
+            view.evaluateJavascript(STOP_MEDIA, null)
+            view.stopLoading()
+        }
     }
 
     private fun toast(message: String) { Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
+
+    private companion object {
+        const val PAUSE_MEDIA = "document.querySelectorAll('video,audio').forEach(function(m){m.pause()})"
+        const val STOP_MEDIA = "document.querySelectorAll('video,audio').forEach(function(m){m.pause();m.removeAttribute('src');" +
+            "m.querySelectorAll('source').forEach(function(s){s.remove()});m.load()})"
+    }
 }

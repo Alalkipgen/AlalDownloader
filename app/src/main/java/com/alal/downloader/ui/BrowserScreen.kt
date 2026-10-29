@@ -300,6 +300,7 @@ fun BrowserConfirmation(session: BrowserSession, viewModel: BrowserViewModel, ch
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !submitting)
             } else Text("Keep existing destination and checkpoints. Changed or unverifiable content restarts safely.")
             if (direct) Text("Single-threaded page save. Keep this page open; this transfer cannot resume after process death.")
+            if (capture.document) Text("The browser opened this file itself; page playback is paused.")
             saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(enabled = !submitting && name.isNotBlank() && (direct || (segments.toIntOrNull() ?: 0) in 1..32), onClick = {
                 try {
@@ -307,7 +308,7 @@ fun BrowserConfirmation(session: BrowserSession, viewModel: BrowserViewModel, ch
                         val tab = session.tabs.find { it.id == capture.tabId } ?: error("Source tab closed")
                         session.writer.start(tab.webView, viewModel.request(capture, name, 1))
                         session.capture = null
-                    } else viewModel.submit(capture, name, segments.toInt(), { session.refresh = null }, { session.capture = null })
+                    } else viewModel.submit(capture, name, segments.toInt(), { session.refresh = null }, { session.submitted(capture) })
                 } catch (failure: Exception) { saveError = failure.message }
             }) { Text(if (submitting) "Starting…" else if (capture.refreshId == null) "Download" else "Replace link and resume") }
         }

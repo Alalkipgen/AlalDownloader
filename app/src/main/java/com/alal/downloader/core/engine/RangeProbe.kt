@@ -65,6 +65,7 @@ class RangeProbe(client: OkHttpClient) {
             response.code == 206 || response.header("Accept-Ranges").equals("bytes", true),
             response.header("ETag"), response.header("Last-Modified"),
             response.request.url.toString(), FilenameResolver.resolve(response.request.url.toString(), response.header("Content-Disposition"), response.header("Content-Type")),
+            parseContentDisposition(response.header("Content-Disposition"))?.let { FileNames.sanitize(it) },
         )
     }
 

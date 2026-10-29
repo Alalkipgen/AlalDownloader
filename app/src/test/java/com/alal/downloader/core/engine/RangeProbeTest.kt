@@ -6,6 +6,9 @@ import java.net.ServerSocket
 import javax.net.ssl.SSLHandshakeException
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -46,6 +49,25 @@ class RangeProbeTest {
         assertNull(RangeProbe.parseContentDisposition("attachment; filename=\"\""))
         assertNull(RangeProbe.parseContentDisposition(null))
         assertNull(RangeProbe.parseContentDisposition("attachment; filename=.."))
+    }
+
+    @Test fun probeReportsServerNameOnlyFromContentDisposition() = runBlocking {
+        suspend fun probe(disposition: String?): ProbeResult {
+            val client = OkHttpClient.Builder().addInterceptor { chain ->
+                Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(206).message("Partial Content")
+                    .header("Content-Type", "video/mp4").header("Content-Range", "bytes 0-511/4096")
+                    .apply { if (disposition != null) header("Content-Disposition", disposition) }
+                    .body(ByteArray(512).toResponseBody()).build()
+            }.build()
+            return try {
+                RangeProbe(client).probe(DownloadRequest("https://cdn.example.com/v/clip.mp4", "clip.mp4",
+                    targetDir = File("."), retryOnFailure = false))
+            } finally { client.dispatcher.executorService.shutdownNow() }
+        }
+        val named = probe("inline; filename=\"Real Name.mp4\"")
+        assertEquals("Real Name.mp4", named.serverFileName)
+        assertEquals(4096L, named.totalBytes)
+        assertNull(probe(null).serverFileName)
     }
 
     @Test fun failureMessageNamesRootCauseAndHost() {
